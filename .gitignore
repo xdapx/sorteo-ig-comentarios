@@ -1,0 +1,8 @@
+# Datos del sorteo con nombres de usuario (datos personales) — NO publicar
+comentarios.csv
+estado_sorteo.json
+ganador.txt
+
+# Python
+__pycache__/
+*.pyc

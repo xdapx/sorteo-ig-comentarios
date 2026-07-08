@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorteo IG — Descargar comentarios</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --border: #2a2f3a; --txt: #e7e9ee;
+    --muted: #9aa2b1; --accent: #4f8cff; --ok: #35c46b;
+    --warn: #f5a623; --err: #ff5c5c; --field: #11141a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f6fb; --card: #ffffff; --border: #dfe3ea; --txt: #1a1d24;
+      --muted: #5b6472; --accent: #2f6bff; --field: #f7f9fc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    line-height: 1.5; padding: 24px 16px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-bottom: 16px;
+  }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  label:first-child { margin-top: 0; }
+  .hint { color: var(--muted); font-weight: 400; font-size: 12.5px; }
+  input, textarea {
+    width: 100%; background: var(--field); color: var(--txt);
+    border: 1px solid var(--border); border-radius: 9px; padding: 11px 12px;
+    font-size: 14px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 9px;
+    padding: 11px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--txt); border: 1px solid var(--border); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .stat { font-size: 34px; font-weight: 700; letter-spacing: -.5px; }
+  .statlbl { color: var(--muted); font-size: 13px; }
+  .status { font-size: 14px; margin: 6px 0 0; }
+  #log {
+    margin-top: 14px; background: var(--field); border: 1px solid var(--border);
+    border-radius: 9px; padding: 10px 12px; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px; color: var(--muted); max-height: 190px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .banner {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px;
+    font-size: 13.5px; margin-bottom: 16px;
+  }
+  .hidden { display: none; }
+  a { color: var(--accent); }
+  code { background: var(--field); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sorteo IG · Descargar comentarios</h1>
+  <p class="sub">Pegá el token y el link del reel. Baja todos los comentarios con sus likes y te deja bajar un archivo CSV (usuario, likes, texto, fecha) para filtrar el sorteo.</p>
+
+  <div id="resumeBanner" class="banner hidden"></div>
+
+  <div class="card" id="formCard">
+    <label>Access Token
+      <span class="hint">El token largo del instructivo (Paso 2.1). Permisos: <code>instagram_basic</code>, <code>instagram_manage_comments</code>, <code>pages_show_list</code>, <code>pages_read_engagement</code>. No se guarda ni se comparte: va directo del navegador a Meta.</span>
+    </label>
+    <textarea id="token" placeholder="EAAG..." autocomplete="off" spellcheck="false"></textarea>
+
+    <label>Link del reel
+      <span class="hint">Ej: https://www.instagram.com/reel/DaV38Tqswr3/</span>
+    </label>
+    <input id="reel" placeholder="https://www.instagram.com/reel/..." autocomplete="off" spellcheck="false" value="https://www.instagram.com/reel/DaV38Tqswr3/">
+
+    <details>
+      <summary>Opciones avanzadas</summary>
+      <label>Media ID directo <span class="hint">(opcional) Si ya lo tenés (Paso 5), pegalo y se saltea la búsqueda automática.</span></label>
+      <input id="mediaId" placeholder="1784..." autocomplete="off" spellcheck="false">
+      <label>Versión de la API <span class="hint">Por defecto v21.0</span></label>
+      <input id="apiVer" value="v21.0" autocomplete="off" spellcheck="false">
+    </details>
+
+    <div class="row">
+      <button id="startBtn">Empezar</button>
+      <button id="stopBtn" class="ghost hidden">Detener</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="progressCard">
+    <div class="stat"><span id="count">0</span> <span class="statlbl">comentarios bajados</span></div>
+    <p class="status" id="status">—</p>
+    <div class="row">
+      <button id="downloadBtn" disabled>Descargar CSV</button>
+      <button id="resetBtn" class="ghost">Empezar de nuevo</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ------------------------- IndexedDB (guarda los comentarios) -------------------------
+const DB_NAME = "sorteoIG", STORE = "comments";
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: "id" });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbPutBatch(items) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    const st = tx.objectStore(STORE);
+    for (const it of items) st.put(it);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbCount() {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const req = db.transaction(STORE, "readonly").objectStore(STORE).count();
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbClear() {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function idbEachRow(cb) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const req = db.transaction(STORE, "readonly").objectStore(STORE).openCursor();
+    req.onsuccess = () => { const c = req.result; if (c) { cb(c.value); c.continue(); } else res(); };
+    req.onerror = () => rej(req.error);
+  });
+}
+
+// ------------------------- helpers -------------------------
+const $ = id => document.getElementById(id);
+const LS = { media: "sorteo_media", after: "sorteo_after", done: "sorteo_done" };
+let running = false, stopRequested = false;
+
+function log(msg) {
+  const el = $("log");
+  const t = new Date().toLocaleTimeString();
+  el.textContent += `[${t}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+function setStatus(s) { $("status").textContent = s; }
+async function refreshCount() { $("count").textContent = (await idbCount()).toLocaleString("es-AR"); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function shortcodeFromUrl(url) {
+  const m = (url || "").match(/instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+  return m ? m[1] : null;
+}
+
+// GET con manejo de rate limit / errores, imitando el script de Python.
+async function apiGet(base, path, params) {
+  const url = new URL(`${base}/${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+
+  let espera = 30000; // 30s, sube exponencialmente
+  const MAX = 6;
+  for (let intento = 1; intento <= MAX; intento++) {
+    if (stopRequested) throw new Error("Detenido por el usuario.");
+    let resp;
+    try {
+      resp = await fetch(url.toString());
+    } catch (e) {
+      log(`  Fallo de red, reintento ${intento}/${MAX} en ${espera/1000}s...`);
+      await sleep(espera); espera = Math.min(1200000, espera * 2); continue;
+    }
+    if (resp.ok) return resp.json();
+
+    let err = {};
+    try { err = (await resp.json()).error || {}; } catch (e) {}
+    const code = err.code;
+    const msg = err.message || `HTTP ${resp.status}`;
+
+    if (code === 190) throw new Error(`Token inválido o vencido (código 190). Meta dice: ${msg}. Generá un token nuevo y volvé a continuar (retoma desde donde iba).`);
+
+    const rateLimit = resp.status === 429 || [4, 17, 32, 613, 80004].includes(code);
+    const transitorio = [500, 502, 503].includes(resp.status);
+
+    if (rateLimit) {
+      log(`  Rate limit de Instagram (código ${code || resp.status}). Espero ${espera/1000}s y reintento ${intento}/${MAX}...`);
+      setStatus(`Instagram pidió esperar (rate limit). Reintentando en ${espera/1000}s… dejá la pestaña abierta.`);
+      await sleep(espera); espera = Math.min(1200000, espera * 2); continue;
+    }
+    if (transitorio) {
+      log(`  Error ${resp.status}, reintento ${intento}/${MAX} en ${espera/1000}s...`);
+      await sleep(espera); espera = Math.min(1200000, espera * 2); continue;
+    }
+    throw new Error(`Error ${resp.status} de Meta (código ${code}): ${msg}`);
+  }
+  throw new Error("No se pudo tras varios reintentos (rate limit sostenido). El progreso quedó guardado: volvé a continuar más tarde.");
+}
+
+// Resuelve el Media ID a partir del link del reel.
+async function resolverMediaId(base, token, shortcode) {
+  log("Buscando la página de Facebook vinculada…");
+  const cuentas = await apiGet(base, "me/accounts", { access_token: token, fields: "id,name,instagram_business_account", limit: 100 });
+  const pages = cuentas.data || [];
+  if (!pages.length) throw new Error("El token no administra ninguna Página de Facebook. Revisá el Paso 0 del instructivo.");
+
+  for (const page of pages) {
+    let igId = page.instagram_business_account && page.instagram_business_account.id;
+    if (!igId) {
+      const info = await apiGet(base, page.id, { access_token: token, fields: "instagram_business_account" });
+      igId = info.instagram_business_account && info.instagram_business_account.id;
+    }
+    if (!igId) continue;
+    log(`Cuenta IG encontrada (${igId}). Buscando el reel ${shortcode}…`);
+
+    let path = `${igId}/media`, params = { access_token: token, fields: "id,permalink", limit: 100 }, pagina = 0;
+    while (path) {
+      const data = await apiGet(base, path, params);
+      for (const m of (data.data || [])) {
+        if ((m.permalink || "").includes(shortcode)) { log(`¡Reel encontrado! Media ID: ${m.id}`); return m.id; }
+      }
+      pagina++;
+      const next = data.paging && data.paging.next;
+      if (!next || pagina >= 60) break; // hasta ~6000 posteos
+      const u = new URL(next); path = u.pathname.replace(/^\/[^/]+\//, ""); params = Object.fromEntries(u.searchParams);
+      setStatus(`Buscando el reel entre los posteos… (página ${pagina})`);
+    }
+  }
+  throw new Error(`No encontré el reel ${shortcode} en la cuenta. Verificá que el link sea de @damiancivale, o pegá el Media ID directo en Opciones avanzadas.`);
+}
+
+// Baja todos los comentarios, guardando en IndexedDB y el cursor en localStorage.
+async function bajarComentarios(base, token, mediaId) {
+  let path = `${mediaId}/comments`;
+  let params = { access_token: token, fields: "id,username,text,like_count,timestamp", limit: 100 };
+  const afterGuardado = localStorage.getItem(LS.after);
+  if (afterGuardado) { params.after = afterGuardado; log(`Retomo desde el cursor guardado.`); }
+
+  while (true) {
+    if (stopRequested) { setStatus("Detenido. El progreso quedó guardado; podés continuar cuando quieras."); return; }
+    const data = await apiGet(base, path, params);
+    const lote = data.data || [];
+    if (lote.length) await idbPutBatch(lote);
+    await refreshCount();
+
+    const paging = data.paging || {};
+    let after = (paging.cursors && paging.cursors.after) || null;
+    if (!after && paging.next) { try { after = new URL(paging.next).searchParams.get("after"); } catch (e) {} }
+
+    if (!paging.next || !after) {
+      localStorage.setItem(LS.done, "1"); localStorage.removeItem(LS.after);
+      setStatus("✅ Listo. Se bajaron todos los comentarios. Ya podés descargar el CSV.");
+      log("Descarga completa.");
+      return;
+    }
+    localStorage.setItem(LS.after, after);
+    params = { access_token: token, fields: params.fields, limit: 100, after };
+    setStatus("Bajando comentarios… dejá la pestaña abierta.");
+  }
+}
+
+// ------------------------- CSV -------------------------
+function csvCampo(v) {
+  const s = (v === undefined || v === null) ? "" : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+async function descargarCSV() {
+  setStatus("Armando el archivo…");
+  const lineas = ["username,like_count,text,timestamp,id"];
+  await idbEachRow(c => lineas.push([
+    csvCampo(c.username), csvCampo(c.like_count || 0), csvCampo(c.text), csvCampo(c.timestamp), csvCampo(c.id)
+  ].join(",")));
+  const blob = new Blob(["﻿" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "comentarios.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setStatus(`Descargado comentarios.csv con ${(lineas.length - 1).toLocaleString("es-AR")} comentarios.`);
+}
+
+// ------------------------- flujo principal -------------------------
+async function empezar() {
+  const token = $("token").value.trim();
+  if (!token) { alert("Pegá el Access Token."); return; }
+  const base = `https://graph.facebook.com/${($("apiVer").value.trim() || "v21.0")}`;
+
+  running = true; stopRequested = false;
+  $("startBtn").disabled = true; $("stopBtn").classList.remove("hidden");
+  $("progressCard").classList.remove("hidden");
+  $("downloadBtn").disabled = false;
+
+  try {
+    let mediaId = $("mediaId").value.trim() || localStorage.getItem(LS.media);
+    if (!mediaId) {
+      const sc = shortcodeFromUrl($("reel").value.trim());
+      if (!sc) throw new Error("No pude leer el código del reel. Revisá el link o pegá el Media ID directo.");
+      mediaId = await resolverMediaId(base, token, sc);
+    } else {
+      log(`Uso Media ID: ${mediaId}`);
+    }
+    localStorage.setItem(LS.media, mediaId);
+
+    if (localStorage.getItem(LS.done) === "1") {
+      setStatus("✅ Esta descarga ya estaba completa. Descargá el CSV o empezá de nuevo.");
+    } else {
+      await bajarComentarios(base, token, mediaId);
+    }
+  } catch (e) {
+    setStatus("⚠️ " + e.message);
+    log("ERROR: " + e.message);
+  } finally {
+    running = false;
+    $("startBtn").disabled = false; $("stopBtn").classList.add("hidden");
+  }
+}
+
+async function reset() {
+  if (!confirm("Esto borra el progreso bajado en este navegador. ¿Seguro?")) return;
+  await idbClear();
+  localStorage.removeItem(LS.media); localStorage.removeItem(LS.after); localStorage.removeItem(LS.done);
+  $("log").textContent = ""; setStatus("Listo para empezar de nuevo.");
+  await refreshCount(); checkResume();
+}
+
+async function checkResume() {
+  const n = await idbCount();
+  const done = localStorage.getItem(LS.done) === "1";
+  const b = $("resumeBanner");
+  if (n > 0) {
+    b.classList.remove("hidden");
+    b.innerHTML = done
+      ? `Ya tenés una descarga <b>completa</b> de ${n.toLocaleString("es-AR")} comentarios en este navegador. Abrí el panel y descargá el CSV, o "Empezar de nuevo".`
+      : `Tenés una descarga <b>a medias</b> de ${n.toLocaleString("es-AR")} comentarios. Pegá el token de nuevo y "Empezar": continúa desde donde iba.`;
+    $("progressCard").classList.remove("hidden");
+    $("downloadBtn").disabled = false;
+    await refreshCount();
+  } else {
+    b.classList.add("hidden");
+  }
+}
+
+$("startBtn").onclick = empezar;
+$("stopBtn").onclick = () => { stopRequested = true; setStatus("Deteniendo…"); };
+$("downloadBtn").onclick = descargarCSV;
+$("resetBtn").onclick = reset;
+window.addEventListener("beforeunload", e => { if (running) { e.preventDefault(); e.returnValue = ""; } });
+checkResume();
+</script>
+</body>
+</html>
