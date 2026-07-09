@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorteo @damiancivale · Ganadores</title>
+<style>
+  :root{
+    --bg:#0d0f16; --card:#191c27; --border:#2a2f3e; --txt:#eef0f6; --muted:#98a1b4;
+    --gold:#ffd35c; --gold2:#ff9e2c; --accent:#7c5cff; --accent2:#4f8cff; --win:#2fd06b;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#eef1f9; --card:#ffffff; --border:#e0e5ef; --txt:#131826; --muted:#5b6577; }
+  }
+  :root[data-theme="light"]{ --bg:#eef1f9; --card:#ffffff; --border:#e0e5ef; --txt:#131826; --muted:#5b6577; }
+  :root[data-theme="dark"]{ --bg:#0d0f16; --card:#191c27; --border:#2a2f3e; --txt:#eef0f6; --muted:#98a1b4; }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--txt);min-height:100vh;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;}
+  .wrap{max-width:780px;margin:0 auto;padding:34px 18px 64px;}
+  header{text-align:center;margin-bottom:24px;}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:-.3px;}
+  .sub{color:var(--muted);font-size:14px;margin:0;}
+  .badge{display:inline-block;margin-top:14px;padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;
+    color:#3a2a00;background:linear-gradient(100deg,var(--gold),var(--gold2));}
+  .center{text-align:center;}
+  .btn-main{margin:26px auto 4px;display:inline-flex;align-items:center;gap:10px;cursor:pointer;border:0;
+    font-size:19px;font-weight:800;color:#fff;padding:16px 30px;border-radius:14px;
+    background:linear-gradient(100deg,var(--accent),var(--accent2));box-shadow:0 10px 30px -8px var(--accent);
+    transition:transform .1s ease, filter .2s;}
+  .btn-main:hover{filter:brightness(1.08);} .btn-main:active{transform:scale(.97);}
+  .btn-main:disabled{opacity:.55;cursor:default;filter:grayscale(.3);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:26px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:16px 14px;
+    display:flex;align-items:center;gap:11px;min-height:64px;position:relative;overflow:hidden;}
+  .card .rank{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+    font-size:13px;font-weight:800;color:var(--muted);background:color-mix(in srgb,var(--muted) 18%,transparent);}
+  .card .name{font-weight:700;font-size:15px;word-break:break-all;}
+  .card.spin .name{color:var(--muted);opacity:.7;}
+  .card.won{border-color:var(--gold);background:
+    linear-gradient(180deg,color-mix(in srgb,var(--gold) 14%,var(--card)),var(--card));
+    animation:pop .45s cubic-bezier(.2,1.3,.5,1);}
+  .card.won .rank{color:#3a2a00;background:linear-gradient(100deg,var(--gold),var(--gold2));}
+  .card.won .name{color:var(--txt);}
+  @keyframes pop{0%{transform:scale(.8);opacity:.4;}100%{transform:scale(1);opacity:1;}}
+  .meta{margin-top:26px;text-align:center;color:var(--muted);font-size:13px;}
+  .row{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
+  .btn-ghost{cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--txt);
+    padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;}
+  .btn-ghost:hover{border-color:var(--accent2);}
+  .audit{margin-top:14px;font-size:12px;color:var(--muted);max-width:520px;margin-inline:auto;}
+  .hidden{display:none;}
+  code{background:var(--card);border:1px solid var(--border);padding:1px 6px;border-radius:5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎉 Sorteo @damiancivale</h1>
+    <p class="sub">Reel del sorteo · 13.405 comentarios participantes</p>
+    <div class="badge">8 ganadores · al azar entre los 36 de menos likes</div>
+  </header>
+
+  <div class="center">
+    <button id="go" class="btn-main">🎲 Sortear 8 ganadores</button>
+  </div>
+
+  <div id="grid" class="grid"></div>
+
+  <div id="meta" class="meta hidden">
+    <div>🔐 Semilla del sorteo: <code id="seed"></code> · <span id="when"></span></div>
+    <div class="row">
+      <button id="copy" class="btn-ghost">📋 Copiar ganadores</button>
+      <button id="again" class="btn-ghost">🔄 Sortear de nuevo</button>
+    </div>
+    <p class="audit">Auditable: con la lista fija de 36 candidatos (los comentarios con menos likes) y esta semilla,
+      el mismo sorteo devuelve siempre estos mismos 8 ganadores.</p>
+  </div>
+</div>
+
+<script>
+"use strict";
+// 36 candidatos: usuarios con comentarios de MENOS likes (0) en el reel DaOCNtWsrlA
+const POOL = ["_marquinio_","abrublejman_","ailuuacevedo","anmansilla_","aracriana","arielaitta","axel.torres4","beliciiosa","buenosvinossocialclub","cande.dz","ceciibongiorno","cepeda_home0","chemarianook","chula.38","ciubizflorenciacecilia","dulce.megami.007","dulcepatitook","elpupicastro","florestacharito","gonzalo.a.giammarino","ignacio83795","imiglioricani09","jeanigarcia","lu.sampieri","macarinajuliana","magaschett","meraki.vnc","mis.apuntes.faq","nan0mecanica","press_on_listas_","shessamy","snow.bloody_","sxbriina___","tomassl769","trendycs_","whoisaty"];
+const CANT = 8;
+
+const $ = id => document.getElementById(id);
+const go = $("go"), grid = $("grid"), meta = $("meta");
+
+// PRNG determinista (mulberry32) para que la semilla sea reproducible/auditable
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function elegir(seed, n){
+  const rng = mulberry32(seed), arr = POOL.slice();
+  for(let i=arr.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}
+  return arr.slice(0, n);
+}
+
+let ganadores = [];
+function sortear(){
+  const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  ganadores = elegir(seed, CANT);
+  go.disabled = true; meta.classList.add("hidden");
+
+  grid.innerHTML = "";
+  const cards = [];
+  for(let i=0;i<CANT;i++){
+    const c = document.createElement("div");
+    c.className = "card spin";
+    c.innerHTML = `<span class="rank">${i+1}</span><span class="name">@…</span>`;
+    grid.appendChild(c); cards.push(c);
+  }
+  // Suspenso: cada tarjeta cicla nombres al azar
+  const timers = cards.map(c => {
+    const n = c.querySelector(".name");
+    return setInterval(()=>{ n.textContent = "@" + POOL[Math.floor(Math.random()*POOL.length)]; }, 65);
+  });
+  // Se van fijando de a una
+  cards.forEach((c,i)=>{
+    setTimeout(()=>{
+      clearInterval(timers[i]);
+      c.classList.remove("spin"); c.classList.add("won");
+      c.querySelector(".name").textContent = "@" + ganadores[i];
+    }, 1300 + i*280);
+  });
+  // Al final: mostrar semilla y botones
+  setTimeout(()=>{
+    $("seed").textContent = seed;
+    $("when").textContent = new Date().toLocaleString("es-AR");
+    meta.classList.remove("hidden");
+    go.disabled = false; go.textContent = "🎲 Sortear otra vez";
+  }, 1300 + CANT*280 + 250);
+}
+
+go.onclick = sortear;
+$("again").onclick = sortear;
+$("copy").onclick = () => {
+  navigator.clipboard.writeText(ganadores.map(g => "@"+g).join("\n"));
+  const b = $("copy"); b.textContent = "✅ Copiado"; setTimeout(()=>b.textContent="📋 Copiar ganadores", 1600);
+};
+</script>
+</body>
+</html>
