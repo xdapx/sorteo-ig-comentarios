@@ -2,7 +2,11 @@
 comentarios.csv
 estado_sorteo.json
 ganador.txt
+mas-likes.txt
 
 # Python
 __pycache__/
 *.pyc
+
+# Datos con el TEXTO de los comentarios: no se publican
+datos.json
