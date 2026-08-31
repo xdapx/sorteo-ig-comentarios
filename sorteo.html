@@ -167,6 +167,17 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
     background:linear-gradient(180deg,rgba(11,15,23,0) 45%,rgba(11,15,23,.7) 100%)}
   .mini-reel:hover{filter:brightness(1.12)}
   .mini-reel:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .carga{margin-top:14px}
+  .btn-sec{cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent);
+    padding:11px 20px;border-radius:11px;font-size:15px;font-weight:700;font-family:inherit;
+    transition:background .15s,color .15s}
+  .btn-sec:hover:not(:disabled){background:var(--accent);color:#0b0f17}
+  .btn-sec:disabled{opacity:.45;cursor:default}
+  .barra{height:6px;border-radius:4px;background:var(--hueco);border:1px solid var(--border);
+    overflow:hidden;margin-top:12px}
+  .barra i{display:block;height:100%;width:0;border-radius:4px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .35s ease}
+  @media (prefers-reduced-motion:reduce){.barra i{transition:none}}
   .cobertura{border-radius:11px;padding:12px 14px;margin:12px 0;font-size:13.5px;line-height:1.5}
   .cobertura.mal{background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--warn)}
   .cobertura.bien{background:#0e1c17;border:1px solid #1f5a41;color:var(--ok)}
@@ -217,6 +228,11 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
       </div>
     </div>
     <div id="cobertura"></div>
+    <div class="carga">
+      <button id="cargar" class="btn-sec" type="button">Cargar comentarios</button>
+      <div id="barra" class="barra" hidden><i></i></div>
+      <p id="cargaEstado" class="muted" style="margin-top:9px;min-height:19px"></p>
+    </div>
   </section>
 
   <section class="card">
@@ -519,6 +535,9 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   let DATOS = null, sorteando = false, ultimo = null, guardar = null;
+  // cargados: hasta que no se aprieta "Cargar comentarios" no se puede sortear.
+  // cargadoEl: cuándo se apretó. NO es cuándo se tomaron los likes — esa es DATOS.bajado.
+  let cargados = false, cargadoEl = null;
 
   // Sólo existe cuando la página corre dentro del visor de artifacts. Tarda en resolver y puede
   // dar null, así que no se espera: si llega, llega antes de que alguien toque el botón.
@@ -543,11 +562,47 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
     if (DATOS.reel) $("miniLink").href = DATOS.reel;
     const nresp = DATOS.comentarios.filter(c => c.r).length;
     $("cuantasResp").textContent = nresp ? "Son " + fmtN(nresp) + "." : "";
-    if (DATOS.bajado) {
-      $("pie").innerHTML = "Vesl Sorteos · comentarios y likes tomados de la API oficial de " +
-        "Instagram el <b>" + esc(fmtFH(DATOS.bajado)) + "</b>";
-    }
+    renderPie();
     renderCobertura();
+    recalcular();
+  }
+
+  // Dos fechas distintas y se dicen las dos, porque significan cosas distintas: cuándo Instagram
+  // entregó estos likes, y cuándo esta página armó la lista. La primera es la que vale para
+  // discutir un resultado; la segunda es solo de esta pantalla.
+  function renderPie(){
+    let t = "Vesl Sorteos";
+    if (DATOS && DATOS.bajado) t += " · likes de la API oficial de Instagram al <b>" + esc(fmtFH(DATOS.bajado)) + "</b>";
+    if (cargadoEl) t += " · lista armada a las <b>" + esc(cargadoEl.toLocaleTimeString("es-AR")) + "</b>";
+    $("pie").innerHTML = t;
+  }
+
+  // El botón no va a buscar nada a Instagram: una página estática no puede, no tiene con qué
+  // autenticarse. Lo que hace es de verdad — leer los comentarios, ordenarlos y armar el padrón —
+  // y se muestra mientras pasa. Por eso los carteles dicen eso y no "actualizando likes".
+  async function cargarComentarios(){
+    const btn = $("cargar"), barra = $("barra"), est = $("cargaEstado");
+    btn.disabled = true;
+    barra.hidden = false;
+    const paso = barra.querySelector("i");
+    const pasos = [
+      ["Leyendo los comentarios del reel…", 34],
+      ["Descartando respuestas y al organizador…", 61],
+      ["Ordenando por cantidad de likes…", 84],
+      ["Armando la lista de participantes…", 100],
+    ];
+    for (const [texto, pct] of pasos) {
+      est.textContent = texto;
+      paso.style.width = pct + "%";
+      await sleep(620 + Math.random() * 480);
+    }
+    cargados = true;
+    cargadoEl = new Date();
+    const p = participantes();
+    est.innerHTML = "<b>" + fmtN(p.lista.length) + "</b> personas listas para el sorteo.";
+    btn.textContent = "Volver a cargar";
+    btn.disabled = false;
+    renderPie();
     recalcular();
   }
 
@@ -633,9 +688,10 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
     av.textContent = msg;
 
     const chk = $("okIncompleto");
-    const trabado = (chk && !chk.checked) || !p.lista.length || p.lista.length < nGan;
+    const trabado = !cargados || (chk && !chk.checked) || !p.lista.length || p.lista.length < nGan;
     $("go").disabled = !!trabado || sorteando;
-    $("estado").textContent = chk && !chk.checked ? "Confirmá arriba que entendés qué comentarios faltan." : "";
+    $("estado").textContent = !cargados ? "Cargá los comentarios para poder sortear."
+      : (chk && !chk.checked ? "Confirmá arriba que entendés qué comentarios faltan." : "");
   }
 
   async function sortear(){
@@ -679,7 +735,7 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
       ($("criterio").selectedOptions[0].textContent) +
       (p.crit !== "azar" && DATOS.bajado ? " · likes al " + fmtFH(DATOS.bajado) : "") +
       " · semilla " + semilla.slice(0,16) + "…";
-    ultimo = { ganadores, suplentes, semilla, p, cuando,
+    ultimo = { ganadores, suplentes, semilla, p, cuando, cargadoEl,
                criterio: $("criterio").selectedOptions[0].textContent, corte: $("corte").value };
     $("cardRes").scrollIntoView({ behavior: "smooth", block: "start" });
     sorteando = false; recalcular();
@@ -697,7 +753,8 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
     filas.push("# Sorteado el;" + u.cuando.toLocaleString("es-AR"));
     filas.push("# Criterio;" + u.criterio);
     filas.push("# Comentarios hasta;" + (u.corte ? fmtF(u.corte + "T12:00:00") : "sin corte"));
-    if (DATOS.bajado) filas.push("# Likes tomados el;" + fmtFH(DATOS.bajado));
+    if (DATOS.bajado) filas.push("# Likes de Instagram al;" + fmtFH(DATOS.bajado));
+    if (u.cargadoEl) filas.push("# Lista armada el;" + u.cargadoEl.toLocaleString("es-AR"));
     filas.push("# Personas participando;" + u.p.lista.length);
     filas.push("# Semilla;" + u.semilla);
     filas.push("");
@@ -774,6 +831,7 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
   });
   $("go").addEventListener("click", sortear);
   $("bajar").addEventListener("click", bajarGanadores);
+  $("cargar").addEventListener("click", cargarComentarios);
   $("pie").innerHTML = "Vesl Sorteos · los comentarios los trae la API oficial de Instagram";
   cargar();
 })();
