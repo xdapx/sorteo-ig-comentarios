@@ -11,6 +11,9 @@ __pycache__/
 # Datos con el TEXTO de los comentarios: no se publican
 datos.json
 
+# Token de Meta: NUNCA se commitea (dura 1-2 h, igual se borra al terminar)
+.token.tmp
+
 # Estado de las corridas: llevan ids de comentarios adentro
 estado_respuestas.json
 sonda_paginado.json

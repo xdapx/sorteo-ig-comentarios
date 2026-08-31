@@ -291,6 +291,53 @@ def obtener_comentarios(media_id, token):
 
 
 
+def refrescar_likes(media_id, token, comentarios):
+    """
+    Segunda pasada, liviana: vuelve a barrer /comments pidiendo SOLO id y like_count, y pisa
+    los likes de lo que ya esta guardado.
+
+    Por que existe aparte del barrido principal: el barrido pide los comentarios con la
+    expansion de respuestas encima (replies.limit(200){...}), y ese pedido pesado no devuelve
+    los likes al dia. El pedido simple si. Medido el 31/08/2026 sobre el mismo comentario, con
+    el mismo token y en el mismo minuto.
+
+    Son 9 pedidos para este reel: sale mas barato que equivocarse de ganador.
+    """
+    por_id = {c["id"]: c for c in comentarios}
+    url = f"{GRAPH_URL}/{media_id}/comments"
+    params = {"fields": "id,like_count", "access_token": token, "limit": 500}
+    cursores_vistos, cambiados, vistos = set(), 0, 0
+
+    while True:
+        data = pedir_con_reintentos(url, params)
+        for c in data.get("data", []):
+            vistos += 1
+            previo = por_id.get(c["id"])
+            if previo is None:
+                continue  # comentario nuevo: lo levanta el barrido principal, no este
+            nuevo = int(c.get("like_count") or 0)
+            if int(previo.get("like_count") or 0) != nuevo:
+                previo["like_count"] = nuevo
+                cambiados += 1
+        print(f"  Refrescando likes: {vistos} revisados, {cambiados} corregidos...    ", end="\r")
+
+        siguiente = (data.get("paging") or {}).get("next")
+        if not siguiente:
+            break
+        cursor = cursor_de_next(siguiente)
+        if cursor and cursor in cursores_vistos:
+            print()
+            print("AVISO: Meta repitio un cursor refrescando los likes. Corto: pueden faltar.")
+            break
+        if cursor:
+            cursores_vistos.add(cursor)
+        url, params = siguiente, {}
+
+    print()
+    reescribir_todo(comentarios)
+    return cambiados, vistos
+
+
 def shortcode_de_reel(url):
     m = re.search(r"instagram\.com/(?:reel|reels|p|tv)/([A-Za-z0-9_-]+)", url or "")
     return m.group(1) if m else ""
@@ -364,6 +411,12 @@ def main():
     if not comentarios:
         print("No se encontraron comentarios.")
         return
+
+    # Siempre, no como opcion: el barrido de arriba trae los likes desactualizados porque va
+    # con la expansion de respuestas encima. Sin esta pasada el sorteo por likes elige mal.
+    cambiados, revisados = refrescar_likes(media, token, comentarios)
+    print(f"Likes refrescados: {revisados} comentarios revisados, {cambiados} estaban viejos.")
+
     respuestas = sum(1 for c in comentarios if c.get("respuesta_a"))
     sin_likes = sum(1 for c in comentarios if int(c.get("like_count") or 0) == 0)
     print(f"Listo: {len(comentarios)} comentarios en {CSV_PATH} (media {media}).")
