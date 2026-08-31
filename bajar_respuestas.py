@@ -170,6 +170,8 @@ def main():
           f"({len(ya)} ya consultados) en lotes de {POR_LOTE}.\n")
 
     nuevas = 0
+    por_id = {c["id"]: c for c in comentarios}
+    refrescadas = set()  # respuestas a las que les cambiaron los likes
     for i in range(0, len(pendientes), POR_LOTE):
         lote_ids = pendientes[i:i + POR_LOTE]
         resultados = pedir_lote(token, lote_ids)
@@ -177,13 +179,22 @@ def main():
         filas = []
         for cid, respuestas in resultados.items():
             for r in respuestas:
-                if r["id"] in ids_vistos:
-                    continue
-                ids_vistos.add(r["id"])
                 r["respuesta_a"] = cid
-                filas.append(r)
+                previo = por_id.get(r["id"])
+                if previo is None:
+                    ids_vistos.add(r["id"])
+                    por_id[r["id"]] = r
+                    filas.append(r)
+                    continue
+                # Ya estaba: se le pisan los likes con el valor de ahora, igual que en el
+                # barrido principal. Un numero de likes viejo elige mal al ganador.
+                for k in ("username", "text", "like_count", "timestamp", "respuesta_a"):
+                    if k in r and r[k] != previo.get(k):
+                        if k == "like_count":
+                            refrescadas.add(r["id"])
+                        previo[k] = r[k]
 
-        if filas:
+        if filas or refrescadas:
             comentarios.extend(filas)
             nuevas += len(filas)
             reescribir_todo(comentarios)  # se guarda en cada lote: si se corta, no se pierde nada
@@ -193,14 +204,15 @@ def main():
         guardar_estado(estado)
 
         hechos = min(i + POR_LOTE, len(pendientes))
-        print(f"  {hechos}/{len(pendientes)} comentarios consultados | "
-              f"+{nuevas} respuestas nuevas | {len(comentarios)} filas en total", end="\r")
+        print(f"  {hechos}/{len(pendientes)} consultados | +{nuevas} respuestas nuevas | "
+              f"{len(refrescadas)} con los likes cambiados    ", end="\r")
 
     print()
     respuestas = sum(1 for c in comentarios if c.get("respuesta_a"))
     print(f"\nListo. {len(comentarios)} filas en {CSV_PATH}: "
           f"{len(comentarios) - respuestas} de primer nivel + {respuestas} respuestas.")
     print(f"Respuestas nuevas encontradas en esta pasada: {nuevas}")
+    print(f"Respuestas a las que les cambiaron los likes: {len(refrescadas)}")
     if oficial:
         falta = oficial - len(comentarios)
         print(f"Instagram declara {oficial}: {'faltan ' + str(falta) if falta > 0 else 'cubierto'}"

@@ -16,14 +16,21 @@
   .fila{display:grid;grid-template-columns:1fr 1fr;gap:11px}
   .reel-fila{display:flex;gap:13px;align-items:center}
   .reel-datos{min-width:0;flex:1}
-  .mini-reel{flex:none;display:block;line-height:0;border-radius:11px;overflow:hidden;
-    border:1px solid var(--border);background:var(--hueco);width:74px}
-  .mini-reel img{width:74px;height:104px;object-fit:cover;display:block}
-  .mini-reel:hover{border-color:var(--accent)}
-  .mini-reel:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* La miniatura va con un aro de degradé (padding + fondo en el contenedor) y encima un velo
+     que la funde con el fondo oscuro por abajo: sin eso el recorte del reel queda como una
+     estampilla pegada. El aro es el único lugar de la página con color fuerte. */
+  .mini-reel{flex:none;position:relative;display:block;line-height:0;width:84px;padding:2px;
+    border:0;border-radius:14px;
+    background:linear-gradient(155deg,var(--accent) 0%,#7a4bf0 52%,var(--gold) 100%);
+    box-shadow:0 12px 28px -14px rgba(77,155,255,.65)}
+  .mini-reel img{width:100%;height:114px;object-fit:cover;display:block;border-radius:12px}
+  .mini-reel::after{content:"";position:absolute;inset:2px;border-radius:12px;pointer-events:none;
+    background:linear-gradient(180deg,rgba(11,15,23,0) 45%,rgba(11,15,23,.7) 100%)}
+  .mini-reel:hover{filter:brightness(1.12)}
+  .mini-reel:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .cobertura{border-radius:11px;padding:12px 14px;margin:12px 0;font-size:13.5px;line-height:1.5}
-  .cobertura.mal{background:#fdf6e6;border:1px solid #e8c98a;color:#7a4a05}
-  .cobertura.bien{background:#eefaf3;border:1px solid #a8dcc2;color:#0b5f3e}
+  .cobertura.mal{background:var(--gold-bg);border:1px solid var(--gold-bd);color:var(--warn)}
+  .cobertura.bien{background:#0e1c17;border:1px solid #1f5a41;color:var(--ok)}
   .cobertura b{color:inherit}
   .confirmo{display:flex;gap:9px;align-items:flex-start;margin-top:11px;font-size:13.5px;cursor:pointer}
   .confirmo input{margin-top:3px;flex:none;width:17px;height:17px;accent-color:var(--accent)}
@@ -85,9 +92,12 @@
       <div class="campo"><label for="nGan">Ganadores</label><input id="nGan" type="number" min="1" max="50" value="1" inputmode="numeric"></div>
       <div class="campo"><label for="nSup">Suplentes</label><input id="nSup" type="number" min="0" max="50" value="5" inputmode="numeric"></div>
     </div>
+    <!-- Viene con el 30/08 puesto porque es lo que se acordo para este sorteo ("los comentarios
+         cuentan hasta ayer"). Vacio se olvida: se sorteo una vez sin corte y salio ganador un
+         comentario del 31. Se puede borrar o cambiar a mano. -->
     <div class="campo">
-      <label for="corte">Los comentarios cuentan hasta (opcional)</label>
-      <input id="corte" type="date">
+      <label for="corte">Los comentarios cuentan hasta</label>
+      <input id="corte" type="date" value="2026-08-30">
     </div>
     <!-- El organizador nunca participa. Va fijo y oculto: no es una decisión que se tome
          en cada sorteo, y a la vista solo invita a preguntas. Para cambiarlo, sacar "hidden". -->
@@ -102,7 +112,6 @@
       <input type="checkbox" id="respuestas">
       <span>Contar también las respuestas dentro de un hilo. <b id="cuantasResp"></b></span>
     </label>
-    <div class="tablero" id="tablero"></div>
     <div id="avisoCriterio" class="cobertura mal" hidden></div>
   </section>
 
@@ -136,6 +145,9 @@
   const fmtN = n => Number(n).toLocaleString("es-AR");
   const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const fmtF = d => new Intl.DateTimeFormat("es-AR",{timeZone:"America/Argentina/Buenos_Aires",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(d));
+  // Los likes son una foto: siguen cambiando en Instagram despues de bajarlos. Cuando el
+  // criterio se decide por likes, la hora de esa foto es parte del resultado.
+  const fmtFH = d => new Intl.DateTimeFormat("es-AR",{timeZone:"America/Argentina/Buenos_Aires",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(d));
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   let DATOS = null, sorteando = false, ultimo = null, guardar = null;
@@ -155,10 +167,18 @@
     }
     $("reel").value = DATOS.reel || "";
     // La miniatura viaja embebida: la URL que da Instagram está firmada y se vence en horas.
-    if (DATOS.miniatura) { $("mini").src = DATOS.miniatura; $("mini").hidden = false; }
+    // En local datos.json no la trae (la embebe armar-publicacion.js), así que se cae al
+    // archivo suelto para que el diseño se vea igual acá que publicado.
+    $("mini").src = DATOS.miniatura || "miniatura.jpg";
+    $("mini").hidden = false;
+    $("mini").addEventListener("error", () => { $("miniLink").hidden = true; });
     if (DATOS.reel) $("miniLink").href = DATOS.reel;
     const nresp = DATOS.comentarios.filter(c => c.r).length;
     $("cuantasResp").textContent = nresp ? "Son " + fmtN(nresp) + "." : "";
+    if (DATOS.bajado) {
+      $("pie").innerHTML = "Vesl Sorteos · comentarios y likes tomados de la API oficial de " +
+        "Instagram el <b>" + esc(fmtFH(DATOS.bajado)) + "</b>";
+    }
     renderCobertura();
     recalcular();
   }
@@ -177,12 +197,15 @@
         '<label class="confirmo"><input type="checkbox" id="okIncompleto"><span>Entiendo que el sorteo se hace sobre ' +
         fmtN(c.length) + " comentarios de " + fmtN(decl) + ", y que quien haya comentado antes del " + fmtF(masViejo) +
         " no participa.</span></label></div>";
+    } else if (decl) {
+      // Va SOLO el número de Instagram, no el nuestro al lado. Los dos juntos invitaban a una
+      // resta que la página no puede explicar (son comentarios borrados u ocultos por el filtro,
+      // que la API no entrega) y que Instagram mismo no cierra: su API declaraba 4.820 mientras
+      // su app mostraba 4.951 el mismo día. El aviso de arriba sí queda: si faltan los primeros
+      // días del reel, hay que verlo y confirmarlo antes de sortear.
+      html = '<p class="muted" style="margin:10px 0 0">Instagram cuenta <b>' + fmtN(decl) +
+        "</b> comentarios en este reel.</p>";
     }
-    // Cuando la cobertura está bien no se muestra nada. Poner el total al lado del contador de
-    // Instagram invitaba a comparar dos números que Instagram mismo no hace coincidir (su API
-    // declaraba 4.820 mientras la app mostraba 4.951 el 31/08/2026), y esa resta no la puede
-    // explicar la página: son comentarios borrados u ocultos por el filtro, que la API no entrega.
-    // El aviso de arriba sí queda: si faltan los primeros días, hay que verlo y confirmarlo.
     $("cobertura").innerHTML = html;
     const chk = $("okIncompleto");
     if (chk) chk.addEventListener("change", recalcular);
@@ -224,16 +247,10 @@
   function recalcular(){
     if (!DATOS) return;
     const p = participantes();
-    // Sin totales: ni comentarios ni personas. Todo número grande acá arriba se lee como una
-    // promesa de exactitud, y contra el contador de Instagram no la podemos sostener. Queda solo
-    // lo que hace falta para entender el resultado: qué se descartó y cuántos quedaron empatados.
-    const datos = [];
-    if (p.descartados) datos.push([fmtN(p.descartados), "descartados por el corte"]);
-    if (p.crit !== "azar" && p.valor !== null) {
-      datos.push([fmtN(p.enElValor), "empatados en " + fmtN(p.valor) + " like" + (p.valor === 1 ? "" : "s")]);
-    }
-    $("tablero").innerHTML = datos.map(([v,r]) =>
-      '<div class="dato"><b>' + v + "</b><span>" + esc(r) + "</span></div>").join("");
+    // Antes de sortear no se adelanta NADA del resultado: ni cuántos quedaron empatados en el
+    // mínimo ni cuántos participan. Adelantarlo convierte al botón en un trámite y hace que el
+    // sorteo parezca decidido de antemano, que es justo lo que hay que evitar. La única
+    // excepción está abajo: cuando con estos parámetros no se puede sortear, hay que decirlo.
 
     // RF-13 y RF-15: decir qué va a pasar ANTES de tocar el botón.
     const av = $("avisoCriterio");
@@ -242,8 +259,8 @@
     if (!p.lista.length) msg = "No hay nadie participando con estos parámetros.";
     else if (p.lista.length < nGan) msg = "Hay " + fmtN(p.lista.length) + " participante" + (p.lista.length === 1 ? "" : "s") + " y pediste " + nGan + " ganadores.";
     else if (p.crit !== "azar" && p.enElValor <= nGan)
-      msg = "Con este criterio no se sortea nada: hay " + fmtN(p.enElValor) + " comentario" + (p.enElValor === 1 ? "" : "s") +
-            " con " + fmtN(p.valor) + " like" + (p.valor === 1 ? "" : "s") + ", así que el resultado ya está decidido por los likes.";
+      // Sin dar el número: solo que con estos parámetros el azar no interviene.
+      msg = "Con estos parámetros no hace falta sortear: los likes ya deciden el resultado.";
     av.hidden = !msg;
     av.textContent = msg;
 
@@ -291,7 +308,9 @@
     const cuando = new Date();
     $("semilla").textContent = "Sorteado el " + cuando.toLocaleString("es-AR") +
       " · " + fmtN(p.lista.length) + " participantes · criterio: " +
-      ($("criterio").selectedOptions[0].textContent) + " · semilla " + semilla.slice(0,16) + "…";
+      ($("criterio").selectedOptions[0].textContent) +
+      (p.crit !== "azar" && DATOS.bajado ? " · likes al " + fmtFH(DATOS.bajado) : "") +
+      " · semilla " + semilla.slice(0,16) + "…";
     ultimo = { ganadores, suplentes, semilla, p, cuando,
                criterio: $("criterio").selectedOptions[0].textContent, corte: $("corte").value };
     $("cardRes").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -310,6 +329,7 @@
     filas.push("# Sorteado el;" + u.cuando.toLocaleString("es-AR"));
     filas.push("# Criterio;" + u.criterio);
     filas.push("# Comentarios hasta;" + (u.corte ? fmtF(u.corte + "T12:00:00") : "sin corte"));
+    if (DATOS.bajado) filas.push("# Likes tomados el;" + fmtFH(DATOS.bajado));
     filas.push("# Personas participando;" + u.p.lista.length);
     filas.push("# Semilla;" + u.semilla);
     filas.push("");

@@ -84,16 +84,6 @@ def guardar_estado(estado):
         json.dump(estado, f)
 
 
-def guardar_lote(lote, primer_escritura):
-    modo = "w" if primer_escritura else "a"
-    with open(CSV_PATH, modo, newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CAMPOS)
-        if primer_escritura:
-            writer.writeheader()
-        for c in lote:
-            writer.writerow({k: c.get(k, "") for k in CAMPOS})
-
-
 def reescribir_todo(comentarios):
     """Reescribe el CSV entero. Hace falta cuando cambian las columnas: un archivo viejo
     no tiene 'respuesta_a' y appendear filas con una columna de mas lo desalinea."""
@@ -193,7 +183,8 @@ def obtener_comentarios(media_id, token):
               "(la API solo sirve los mas recientes: lo viejo ya no vuelve).")
 
     todos = list(comentarios_previos)
-    primer_escritura = not comentarios_previos
+    # Indice por id para poder ACTUALIZAR lo que ya estaba, no solo agregar lo nuevo.
+    por_id = {c["id"]: c for c in todos}
     if comentarios_previos:
         print(f"Retomo progreso: {len(comentarios_previos)} comentarios ya guardados"
               + (" (desde donde iba)." if estado.get("next") else "."))
@@ -224,6 +215,7 @@ def obtener_comentarios(media_id, token):
     # a la decima parte de los comentarios. Asi lo hace index.html, que es como se bajaron los
     # 24.848 comentarios del reel de julio.
     cursores_vistos = set()
+    actualizados = set()  # ids a los que les cambiaron los likes desde la corrida anterior
     while True:
         data = pedir_con_reintentos(url, params)
 
@@ -238,20 +230,38 @@ def obtener_comentarios(media_id, token):
                 lote.append(r)
             c.pop("replies", None)
 
-        lote_nuevo = [c for c in lote if c["id"] not in ids_vistos]
-        for c in lote_nuevo:
-            ids_vistos.add(c["id"])
+        # Los que ya estaban NO se saltean: se les pisan los likes con el valor de ahora.
+        # Un comentario bajado hace tres semanas con 0 likes hoy puede tener 40, y si el
+        # criterio del sorteo es "el que tiene menos likes", ese numero viejo elige mal al
+        # ganador. Paso el 31/08/2026: @analita.fre figuraba con 0 y en Instagram tenia 4.
+        lote_nuevo = []
+        for c in lote:
+            previo = por_id.get(c["id"])
+            if previo is None:
+                por_id[c["id"]] = c
+                ids_vistos.add(c["id"])
+                lote_nuevo.append(c)
+                continue
+            for k in CAMPOS:
+                if k in c and c[k] != previo.get(k):
+                    if k == "like_count":
+                        actualizados.add(c["id"])
+                    previo[k] = c[k]
 
-        if lote_nuevo:
-            guardar_lote(lote_nuevo, primer_escritura)
-            primer_escritura = False
-            todos.extend(lote_nuevo)
+        todos.extend(lote_nuevo)
+        # Se reescribe el archivo entero en cada pagina, no se appendea. Appendear solo lo
+        # nuevo dejaria en disco los likes viejos de las filas que se acaban de actualizar en
+        # memoria, y si la corrida se corta (el token dura 1-2 h) se pierde el refresco entero.
+        # Paso el 31/08/2026: vencio a mitad de barrido y se perdieron 149 actualizaciones.
+        if lote_nuevo or actualizados:
+            reescribir_todo(todos)
 
         # OJO: "pagina sin comentarios nuevos" NO es senal de que se atasco. En una corrida de
         # acumulacion TODAS las paginas vienen repetidas, porque ya se bajaron antes. La unica
         # senal real de atasco es que Meta devuelva DOS VECES el mismo cursor.
 
-        print(f"  Progreso: {len(todos)} comentarios bajados...", end="\r")
+        print(f"  Progreso: {len(todos)} comentarios | {len(actualizados)} con los likes "
+              f"cambiados...    ", end="\r")
 
         siguiente = (data.get("paging") or {}).get("next")
         if not siguiente:
@@ -270,10 +280,13 @@ def obtener_comentarios(media_id, token):
         guardar_estado({"next": siguiente, "completado": False})
         url, params = siguiente, {}
 
-    # Reescritura final: deja el archivo con las columnas actuales aunque venga de una corrida
-    # vieja con menos columnas, y de paso queda ordenado y sin repetidos.
+    # Reescritura final: hace falta si o si porque las filas viejas se editaron en memoria
+    # (appendear solo lo nuevo dejaria los likes viejos en el archivo). De paso deja las
+    # columnas actuales aunque venga de una corrida vieja con menos.
     reescribir_todo(todos)
     print()
+    if actualizados:
+        print(f"Le cambiaron los likes a {len(actualizados)} comentarios desde la corrida anterior.")
     return todos
 
 
