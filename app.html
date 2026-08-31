@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vesl Sorteos</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="sorteo.css">
+<style>
+  .paso-t{font-size:12px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:9px}
+  .paso-t i{width:21px;height:21px;border-radius:6px;display:grid;place-items:center;background:var(--accent);color:#fff;font-style:normal;font-size:12px;flex:none}
+  .campo{margin-bottom:13px}
+  .campo label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;font-weight:600}
+  .campo input,.campo select{width:100%;background:var(--hueco);color:var(--txt);border:1px solid var(--border);border-radius:10px;padding:11px 13px;font-size:15px;font-family:inherit}
+  .campo input:focus,.campo select:focus{outline:2px solid var(--accent);border-color:transparent}
+  .fila{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .reel-fila{display:flex;gap:13px;align-items:center}
+  .reel-datos{min-width:0;flex:1}
+  .mini-reel{flex:none;display:block;line-height:0;border-radius:11px;overflow:hidden;
+    border:1px solid var(--border);background:var(--hueco);width:74px}
+  .mini-reel img{width:74px;height:104px;object-fit:cover;display:block}
+  .mini-reel:hover{border-color:var(--accent)}
+  .mini-reel:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .cobertura{border-radius:11px;padding:12px 14px;margin:12px 0;font-size:13.5px;line-height:1.5}
+  .cobertura.mal{background:#fdf6e6;border:1px solid #e8c98a;color:#7a4a05}
+  .cobertura.bien{background:#eefaf3;border:1px solid #a8dcc2;color:#0b5f3e}
+  .cobertura b{color:inherit}
+  .confirmo{display:flex;gap:9px;align-items:flex-start;margin-top:11px;font-size:13.5px;cursor:pointer}
+  .confirmo input{margin-top:3px;flex:none;width:17px;height:17px;accent-color:var(--accent)}
+  .ruleta{min-height:112px;display:grid;place-items:center;margin:6px 0 2px}
+  .ruleta .cara{font-size:clamp(21px,5.6vw,32px);font-weight:900;letter-spacing:-.5px;color:var(--accent);
+    font-variant-numeric:tabular-nums;word-break:break-all;text-align:center;padding:0 8px}
+  .ruleta.quieta .cara{color:var(--gold)}
+  .ganador{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:13px;margin:8px 0;
+    background:var(--gold-bg);border:1px solid var(--gold-bd);animation:entra .4s ease both}
+  .ganador .pos{width:29px;height:29px;border-radius:9px;background:linear-gradient(100deg,#f5d78a,#e8b143);color:#4a3200;font-weight:900;
+    display:grid;place-items:center;font-size:14px;flex:none}
+  .ganador .quien{font-weight:800;font-size:17px;word-break:break-all}
+  .ganador .det{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .ganador.sup{background:var(--silver-bg);border-color:var(--silver-bd)}
+  .ganador.sup .pos{background:linear-gradient(100deg,#e3e9f2,#c3cede);color:#1f2b3d}
+  .ganador.sup .quien{font-size:15px;font-weight:700}
+  @keyframes entra{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.ganador{animation:none}}
+  .comentario{font-size:13px;color:var(--muted);font-style:italic;margin-top:3px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .semilla{font-size:11.5px;color:var(--muted);word-break:break-all;margin-top:12px}
+  .vacio{text-align:center;color:var(--muted);font-size:14px;padding:22px 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="marca">
+    <div class="logo"><span class="pin">V</span>Vesl <em>Sorteos</em></div>
+    <div class="sello" id="selloTop">✓ Sorteo<span> de comentarios</span></div>
+  </div>
+
+  <section class="card">
+    <div class="paso-t"><i>1</i>El reel</div>
+    <div class="reel-fila">
+      <a id="miniLink" class="mini-reel" target="_blank" rel="noopener" title="Ver el reel en Instagram">
+        <img id="mini" alt="Miniatura del reel" hidden>
+      </a>
+      <div class="reel-datos">
+        <div class="campo" style="margin-bottom:0">
+          <label for="reel">Link del reel de Instagram</label>
+          <input id="reel" placeholder="https://www.instagram.com/reel/..." autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+    </div>
+    <div id="cobertura"></div>
+  </section>
+
+  <section class="card">
+    <div class="paso-t"><i>2</i>Los parámetros</div>
+    <div class="campo">
+      <label for="criterio">¿Cómo se elige?</label>
+      <select id="criterio">
+        <option value="azar">Al azar entre todos los que comentaron</option>
+        <option value="menos">El comentario con MENOS likes</option>
+        <option value="mas">El comentario con MÁS likes</option>
+      </select>
+    </div>
+    <div class="fila">
+      <div class="campo"><label for="nGan">Ganadores</label><input id="nGan" type="number" min="1" max="50" value="1" inputmode="numeric"></div>
+      <div class="campo"><label for="nSup">Suplentes</label><input id="nSup" type="number" min="0" max="50" value="5" inputmode="numeric"></div>
+    </div>
+    <div class="campo">
+      <label for="corte">Los comentarios cuentan hasta (opcional)</label>
+      <input id="corte" type="date">
+    </div>
+    <!-- El organizador nunca participa. Va fijo y oculto: no es una decisión que se tome
+         en cada sorteo, y a la vista solo invita a preguntas. Para cambiarlo, sacar "hidden". -->
+    <div class="campo hidden">
+      <label for="excluir">Cuentas que no participan, separadas por coma</label>
+      <input id="excluir" value="damiancivale" placeholder="usuario1, usuario2" autocomplete="off" spellcheck="false">
+    </div>
+    <!-- Las respuestas dentro de un hilo NO cuentan: es lo que se anunció y lo que se hizo en el
+         sorteo anterior. El control queda acá, oculto, porque el motor lo soporta y algún sorteo
+         puede querer lo contrario; para prenderlo se le saca la clase "hidden". -->
+    <label class="confirmo hidden" for="respuestas" style="margin:0 0 13px">
+      <input type="checkbox" id="respuestas">
+      <span>Contar también las respuestas dentro de un hilo. <b id="cuantasResp"></b></span>
+    </label>
+    <div class="tablero" id="tablero"></div>
+    <div id="avisoCriterio" class="cobertura mal" hidden></div>
+  </section>
+
+  <section class="card centro">
+    <div class="ruleta" id="ruleta"><div class="cara" id="cara">—</div></div>
+    <button id="go" class="btn-main">Sortear</button>
+    <p id="estado" class="estado"></p>
+  </section>
+
+  <section class="card hidden" id="cardRes">
+    <div class="section-lbl">Ganadores</div>
+    <div id="gan"></div>
+    <div class="section-lbl hidden" id="supLbl">Suplentes, en orden</div>
+    <div id="sup"></div>
+    <div class="semilla" id="semilla"></div>
+    <div style="text-align:center;margin-top:14px">
+      <button id="bajar" class="btn-ghost" type="button">Descargar ganadores</button>
+    </div>
+  </section>
+
+  <p class="muted" style="text-align:center;margin-top:18px" id="pie"></p>
+</div>
+
+<script src="sorteo-core.js"></script>
+<script>
+(function(){
+  "use strict";
+  const Core = window.SorteoCore;
+  const $ = id => document.getElementById(id);
+  const fmtN = n => Number(n).toLocaleString("es-AR");
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const fmtF = d => new Intl.DateTimeFormat("es-AR",{timeZone:"America/Argentina/Buenos_Aires",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(d));
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  let DATOS = null, sorteando = false, ultimo = null;
+
+  async function cargar(){
+    try {
+      DATOS = await (await fetch("datos.json",{cache:"no-store"})).json();
+    } catch(e){
+      $("cobertura").innerHTML = '<div class="cobertura mal">No pude cargar los comentarios (' + esc(e.message) + ").</div>";
+      return;
+    }
+    $("reel").value = DATOS.reel || "";
+    // La miniatura viaja embebida: la URL que da Instagram está firmada y se vence en horas.
+    if (DATOS.miniatura) { $("mini").src = DATOS.miniatura; $("mini").hidden = false; }
+    if (DATOS.reel) $("miniLink").href = DATOS.reel;
+    const nresp = DATOS.comentarios.filter(c => c.r).length;
+    $("cuantasResp").textContent = nresp ? "Son " + fmtN(nresp) + "." : "";
+    renderCobertura();
+    recalcular();
+  }
+
+  // RF-2 y RF-3: los números de cobertura ANTES de habilitar el sorteo.
+  function renderCobertura(){
+    const c = DATOS.comentarios, fechas = c.map(x => x.ts).sort();
+    const masViejo = fechas[0], publicado = DATOS.publicado;
+    const incompleto = masViejo && publicado && Date.parse(masViejo) > Date.parse(publicado) + 36e5;
+    const decl = DATOS.declarados;
+    let html = "";
+    if (incompleto) {
+      html = '<div class="cobertura mal">Instagram declara <b>' + fmtN(decl) + " comentarios</b> y su API devolvió <b>" +
+        fmtN(c.length) + "</b>. El más viejo que entregó es del <b>" + fmtF(masViejo) + "</b>, pero el reel se publicó el " +
+        fmtF(publicado) + ": <b>faltan los comentarios de los primeros días</b> y no hay forma de recuperarlos." +
+        '<label class="confirmo"><input type="checkbox" id="okIncompleto"><span>Entiendo que el sorteo se hace sobre ' +
+        fmtN(c.length) + " comentarios de " + fmtN(decl) + ", y que quien haya comentado antes del " + fmtF(masViejo) +
+        " no participa.</span></label></div>";
+    }
+    // Cuando la cobertura está bien no se muestra nada. Poner el total al lado del contador de
+    // Instagram invitaba a comparar dos números que Instagram mismo no hace coincidir (su API
+    // declaraba 4.820 mientras la app mostraba 4.951 el 31/08/2026), y esa resta no la puede
+    // explicar la página: son comentarios borrados u ocultos por el filtro, que la API no entrega.
+    // El aviso de arriba sí queda: si faltan los primeros días, hay que verlo y confirmarlo.
+    $("cobertura").innerHTML = html;
+    const chk = $("okIncompleto");
+    if (chk) chk.addEventListener("change", recalcular);
+  }
+
+  function participantes(){
+    if (!DATOS) return { lista: [], porUsuario: new Map(), stats: null };
+    const excl = new Set(($("excluir").value || "").split(",").map(s => s.trim().replace(/^@+/,"").toLowerCase()).filter(Boolean));
+    const corte = $("corte").value ? Date.parse($("corte").value + "T23:59:59-03:00") : null;
+    const crit = $("criterio").value;
+
+    let cs = DATOS.comentarios.filter(c => !excl.has(c.u));
+    // Las respuestas dentro de un hilo no entran salvo que se pidan: el edge de Instagram las
+    // separa, y que cuenten o no cambia el padrón. Se decide acá y se dice en las bases.
+    if (!$("respuestas").checked) cs = cs.filter(c => !c.r);
+    const antesDelCorte = cs.length;
+    if (corte) cs = cs.filter(c => Date.parse(c.ts) <= corte);
+    const descartados = antesDelCorte - cs.length;
+
+    const porUsuario = new Map();
+    for (const c of cs) {
+      const p = porUsuario.get(c.u);
+      // Por usuario nos quedamos con su comentario más relevante según el criterio.
+      if (!p) { porUsuario.set(c.u, c); continue; }
+      if (crit === "menos" && c.l < p.l) porUsuario.set(c.u, c);
+      if (crit === "mas" && c.l > p.l) porUsuario.set(c.u, c);
+    }
+    let lista = [...porUsuario.keys()].sort();
+    let enElValor = null, valor = null;
+    if (crit !== "azar" && lista.length) {
+      const valores = lista.map(u => porUsuario.get(u).l);
+      valor = crit === "menos" ? Math.min.apply(null, valores) : Math.max.apply(null, valores);
+      const enValor = lista.filter(u => porUsuario.get(u).l === valor);
+      enElValor = enValor.length;
+    }
+    return { lista, porUsuario, descartados, comentarios: cs.length, valor, enElValor, crit };
+  }
+
+  function recalcular(){
+    if (!DATOS) return;
+    const p = participantes();
+    // Sin totales: ni comentarios ni personas. Todo número grande acá arriba se lee como una
+    // promesa de exactitud, y contra el contador de Instagram no la podemos sostener. Queda solo
+    // lo que hace falta para entender el resultado: qué se descartó y cuántos quedaron empatados.
+    const datos = [];
+    if (p.descartados) datos.push([fmtN(p.descartados), "descartados por el corte"]);
+    if (p.crit !== "azar" && p.valor !== null) {
+      datos.push([fmtN(p.enElValor), "empatados en " + fmtN(p.valor) + " like" + (p.valor === 1 ? "" : "s")]);
+    }
+    $("tablero").innerHTML = datos.map(([v,r]) =>
+      '<div class="dato"><b>' + v + "</b><span>" + esc(r) + "</span></div>").join("");
+
+    // RF-13 y RF-15: decir qué va a pasar ANTES de tocar el botón.
+    const av = $("avisoCriterio");
+    const nGan = Math.max(1, Number($("nGan").value) || 1);
+    let msg = "";
+    if (!p.lista.length) msg = "No hay nadie participando con estos parámetros.";
+    else if (p.lista.length < nGan) msg = "Hay " + fmtN(p.lista.length) + " participante" + (p.lista.length === 1 ? "" : "s") + " y pediste " + nGan + " ganadores.";
+    else if (p.crit !== "azar" && p.enElValor <= nGan)
+      msg = "Con este criterio no se sortea nada: hay " + fmtN(p.enElValor) + " comentario" + (p.enElValor === 1 ? "" : "s") +
+            " con " + fmtN(p.valor) + " like" + (p.valor === 1 ? "" : "s") + ", así que el resultado ya está decidido por los likes.";
+    av.hidden = !msg;
+    av.textContent = msg;
+
+    const chk = $("okIncompleto");
+    const trabado = (chk && !chk.checked) || !p.lista.length || p.lista.length < nGan;
+    $("go").disabled = !!trabado || sorteando;
+    $("estado").textContent = chk && !chk.checked ? "Confirmá arriba que entendés qué comentarios faltan." : "";
+  }
+
+  async function sortear(){
+    if (sorteando) return;
+    const p = participantes();
+    const nGan = Math.max(1, Number($("nGan").value) || 1);
+    const nSup = Math.max(0, Number($("nSup").value) || 0);
+    sorteando = true; $("go").disabled = true; $("cardRes").classList.add("hidden");
+    $("gan").innerHTML = ""; $("sup").innerHTML = ""; $("supLbl").classList.add("hidden");
+    $("ruleta").classList.remove("quieta");
+
+    // El azar sale del navegador, acá y ahora. Se publica junto al resultado para poder rehacerlo.
+    const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
+    const semilla = Array.from(bytes, b => b.toString(16).padStart(2,"0")).join("");
+
+    let orden;
+    if (p.crit === "azar") {
+      orden = (await Core.sortear(p.lista, semilla, nGan, nSup)).orden.map(x => x.usuario);
+    } else {
+      // Por likes: ordena el recuento y el azar sólo desempata (RF-12 y RF-14).
+      const puntajes = await Core.sortear(p.lista, semilla, 0, 0);
+      const desempate = new Map(puntajes.orden.map((x,i) => [x.usuario, i]));
+      orden = p.lista.slice().sort((a,b) => {
+        const la = p.porUsuario.get(a).l, lb = p.porUsuario.get(b).l;
+        if (la !== lb) return p.crit === "menos" ? la - lb : lb - la;
+        return desempate.get(a) - desempate.get(b);
+      });
+    }
+    const ganadores = orden.slice(0, nGan), suplentes = orden.slice(nGan, nGan + nSup);
+
+    await animar(p.lista, ganadores);
+    $("cardRes").classList.remove("hidden");
+    for (let i = 0; i < ganadores.length; i++) { pintar($("gan"), ganadores[i], i + 1, p, false); await sleep(430); }
+    if (suplentes.length) {
+      $("supLbl").classList.remove("hidden");
+      for (let i = 0; i < suplentes.length; i++) { pintar($("sup"), suplentes[i], i + 1, p, true); await sleep(230); }
+    }
+    const cuando = new Date();
+    $("semilla").textContent = "Sorteado el " + cuando.toLocaleString("es-AR") +
+      " · " + fmtN(p.lista.length) + " participantes · criterio: " +
+      ($("criterio").selectedOptions[0].textContent) + " · semilla " + semilla.slice(0,16) + "…";
+    ultimo = { ganadores, suplentes, semilla, p, cuando,
+               criterio: $("criterio").selectedOptions[0].textContent, corte: $("corte").value };
+    $("cardRes").scrollIntoView({ behavior: "smooth", block: "start" });
+    sorteando = false; recalcular();
+  }
+
+  // Descarga el resultado como CSV. Va con BOM y punto y coma porque asi lo abre Excel en
+  // castellano de un doble clic; con coma parte los acentos y mete todo en una sola columna.
+  // Las lineas que arrancan con # son el acta: sin la semilla y el criterio, la lista de
+  // ganadores es solo una lista de nombres y no se puede rehacer el sorteo.
+  function bajarGanadores(){
+    if (!ultimo) return;
+    const u = ultimo, filas = [];
+    const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
+    filas.push("# Sorteo del reel;" + DATOS.reel);
+    filas.push("# Sorteado el;" + u.cuando.toLocaleString("es-AR"));
+    filas.push("# Criterio;" + u.criterio);
+    filas.push("# Comentarios hasta;" + (u.corte ? fmtF(u.corte + "T12:00:00") : "sin corte"));
+    filas.push("# Personas participando;" + u.p.lista.length);
+    filas.push("# Semilla;" + u.semilla);
+    filas.push("");
+    filas.push(["puesto","tipo","usuario","likes","fecha del comentario","link"].map(q).join(";"));
+    const linea = (usuario, i, tipo) => {
+      const c = u.p.porUsuario.get(usuario);
+      return [i + 1, tipo, "@" + usuario, c ? c.l : "",
+              c ? fmtF(c.ts) : "", Core.urlComentario(DATOS.reel, c && c.id) || ""].map(q).join(";");
+    };
+    u.ganadores.forEach((g, i) => filas.push(linea(g, i, "ganador")));
+    u.suplentes.forEach((s, i) => filas.push(linea(s, i, "suplente")));
+
+    const stamp = u.cuando.toISOString().slice(0,16).replace("T","_").replace(":","");
+    const blob = new Blob(["﻿" + filas.join("\r\n") + "\r\n"], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "ganadores_" + stamp + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // Ruleta: nombres al azar cada vez más lento hasta frenar en el ganador.
+  async function animar(lista, ganadores){
+    const cara = $("cara"), reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || lista.length < 2) { cara.textContent = "@" + ganadores[0]; $("ruleta").classList.add("quieta"); return; }
+    let espera = 45;
+    const hasta = Date.now() + 2600;
+    while (Date.now() < hasta) {
+      cara.textContent = "@" + lista[Math.floor(Math.random() * lista.length)];
+      await sleep(espera);
+      if (Date.now() > hasta - 1100) espera = Math.min(300, espera * 1.28);
+    }
+    cara.textContent = "@" + ganadores[0];
+    $("ruleta").classList.add("quieta");
+    await sleep(320);
+  }
+
+  function pintar(cont, usuario, pos, p, esSup){
+    const c = p.porUsuario.get(usuario);
+    const url = Core.urlComentario(DATOS.reel, c && c.id);
+    const det = c ? (fmtN(c.l) + " like" + (c.l === 1 ? "" : "s") + " · " + fmtF(c.ts)) : "";
+    const d = document.createElement("div");
+    d.className = "ganador" + (esSup ? " sup" : "");
+    d.innerHTML = '<div class="pos">' + pos + '</div><div style="min-width:0"><div class="quien">@' + esc(usuario) + "</div>" +
+      '<div class="det">' + esc(det) + (url ? ' · <a class="link" href="' + esc(url) + '" target="_blank" rel="noopener">ver comentario</a>' : "") + "</div>" +
+      (c && c.t ? '<div class="comentario">' + esc(c.t) + "</div>" : "") + "</div>";
+    cont.appendChild(d);
+  }
+
+  ["criterio","nGan","nSup","corte","excluir","respuestas"].forEach(id => {
+    $(id).addEventListener("input", recalcular);
+    $(id).addEventListener("change", recalcular);
+  });
+  $("go").addEventListener("click", sortear);
+  $("bajar").addEventListener("click", bajarGanadores);
+  $("pie").innerHTML = "Vesl Sorteos · los comentarios los trae la API oficial de Instagram";
+  cargar();
+})();
+</script>
+</body>
+</html>

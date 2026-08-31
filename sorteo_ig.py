@@ -1,12 +1,10 @@
 """
 Trae todos los comentarios de un posteo de Instagram (cuenta Business/Creator)
-con su cantidad de likes, y elige UN ganador entre los que tienen MENOS likes.
+con su cantidad de likes y los guarda en comentarios.csv.
 
-Como en un sorteo la mayoria de los comentarios tienen 0 likes, "el de menos
-likes" casi siempre es un empate de decenas de miles. Por eso, entre todos los
-empatados en el minimo, se elige uno AL AZAR con una semilla registrada: quien
-tenga el CSV y esa semilla puede reproducir exactamente el mismo ganador
-(sorteo auditable).
+Este script SOLO descarga. El sorteo se hace aparte, de forma verificable:
+    node preparar.js --csv comentarios.csv --fecha "AAAA-MM-DDTHH:MM:SS-03:00"
+y despues sortear.html / verificar.html (ver README.md).
 
 Pensado para volumenes grandes (cientos de miles de comentarios):
   - Guarda progreso en comentarios.csv a medida que avanza.
@@ -18,33 +16,37 @@ Pensado para volumenes grandes (cientos de miles de comentarios):
 
 Uso:
     pip install requests
-    python sorteo_ig.py
+    python sorteo_ig.py --token EAAG... --reel https://www.instagram.com/reel/Dbe0kXLgFfk/
+    python sorteo_ig.py --token EAAG... --media 178123...      (si ya se sabe el Media ID)
+    python sorteo_ig.py --token EAAG... --media 178... --reset (empezar de cero, borra el progreso)
 
-Antes de correr, completar ACCESS_TOKEN y MEDIA_ID abajo.
+Tambien se pueden dejar fijos ACCESS_TOKEN y MEDIA_ID abajo, pero los argumentos mandan.
 """
 
+import argparse
 import csv
 import json
 import os
-import random
+import re
+import sys
 import time
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 import requests
 
 ACCESS_TOKEN = "PEGAR_ACA_EL_TOKEN"
 MEDIA_ID = "PEGAR_ACA_EL_MEDIA_ID"
 
-# Semilla del sorteo. Dejar en None para que el script genere una al azar y la
-# registre (en ganador.txt y en pantalla). Para REPRODUCIR un ganador ya
-# sorteado, pegar aca el numero de semilla que quedo guardado y volver a correr.
-SEMILLA = None
 
-GRAPH_URL = "https://graph.facebook.com/v21.0"
+# v21.0 es la version con la que ya se bajo este reel en julio de 2026 y sigue soportada (vence 21/01/2027).
+# Si Meta la rechaza, correr con --version v25.0 (la que usan hoy los ejemplos de la doc).
+VERSION = "v21.0"
+GRAPH_URL = "https://graph.facebook.com/" + VERSION
 CSV_PATH = "comentarios.csv"
 ESTADO_PATH = "estado_sorteo.json"
-GANADOR_PATH = "ganador.txt"
-CAMPOS = ["id", "username", "text", "like_count", "timestamp"]
+# respuesta_a: vacio si es un comentario de primer nivel; el id del comentario padre si es
+# una respuesta dentro de un hilo. Para quien contesta, sigue siendo un comentario en el video.
+CAMPOS = ["id", "username", "text", "like_count", "timestamp", "respuesta_a"]
 
 MAX_REINTENTOS = 6
 BACKOFF_MAX = 1200  # tope de espera entre reintentos, en segundos (20 min)
@@ -92,7 +94,25 @@ def guardar_lote(lote, primer_escritura):
             writer.writerow({k: c.get(k, "") for k in CAMPOS})
 
 
+def reescribir_todo(comentarios):
+    """Reescribe el CSV entero. Hace falta cuando cambian las columnas: un archivo viejo
+    no tiene 'respuesta_a' y appendear filas con una columna de mas lo desalinea."""
+    with open(CSV_PATH, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=CAMPOS)
+        writer.writeheader()
+        for c in comentarios:
+            writer.writerow({k: (c.get(k) if c.get(k) is not None else "") for k in CAMPOS})
+
+
 # --------------------------- pedidos a la API ---------------------------
+
+def con_token_actual(url, token):
+    """Cambia el access_token de una URL guardada por el de esta corrida."""
+    partes = urlsplit(url)
+    q = [(k, v) for k, v in parse_qsl(partes.query, keep_blank_values=True) if k != "access_token"]
+    q.append(("access_token", token))
+    return urlunsplit((partes.scheme, partes.netloc, partes.path, urlencode(q), partes.fragment))
+
 
 def cursor_de_next(next_url):
     """Fallback: sacar el cursor 'after' de la URL 'paging.next' si hiciera falta."""
@@ -164,31 +184,60 @@ def obtener_comentarios(media_id, token):
     estado = cargar_estado()
     comentarios_previos, ids_vistos = cargar_progreso()
 
-    if estado.get("completado"):
-        print(f"La descarga ya se completo en una corrida anterior: uso {CSV_PATH} "
-              f"({len(comentarios_previos)} comentarios). Borra {CSV_PATH} y {ESTADO_PATH} "
-              "si queres re-descargar.")
-        return comentarios_previos
+    # No se corta por "ya lo baje una vez": cada corrida vuelve a barrer y ACUMULA por id, asi
+    # entra lo que se comento desde la vez anterior y nunca se borra lo que ya se tenia.
+    # (El 31/08/2026 se comprobo ademas que un comentario que deja de aparecer en el listado
+    # sigue existiendo si se lo pide por su id, asi que lo acumulado no caduca.)
+    if estado.get("completado") and comentarios_previos:
+        print(f"Ya habia {len(comentarios_previos)} comentarios guardados. Vuelvo a pedir y acumulo "
+              "(la API solo sirve los mas recientes: lo viejo ya no vuelve).")
 
     todos = list(comentarios_previos)
     primer_escritura = not comentarios_previos
     if comentarios_previos:
         print(f"Retomo progreso: {len(comentarios_previos)} comentarios ya guardados"
-              + (" (desde el cursor guardado)." if estado.get("after") else "."))
+              + (" (desde donde iba)." if estado.get("next") else "."))
 
     url = f"{GRAPH_URL}/{media_id}/comments"
     params = {
-        "fields": "id,text,username,like_count,timestamp",
+        # Las respuestas vienen por expansion en el mismo pedido: el edge /comments SOLO
+        # devuelve comentarios de primer nivel, y para quien contesto adentro de un hilo su
+        # respuesta es un comentario en el video igual.
+        "fields": "id,text,username,like_count,timestamp,"
+                  "replies.limit(200){id,text,username,like_count,timestamp}",
         "access_token": token,
-        "limit": 100,
+        # La doc dice "maximo 50 por query" y NO es cierto: con limit=50 la paginacion se
+        # atasca y corta en ~475 sin dar ningun error; con limit=500 trae los 2.901 reales.
+        "limit": 500,
     }
-    if estado.get("after"):
-        params["after"] = estado["after"]
+    # Si una corrida anterior quedo A MITAD, se retoma con la URL 'next' que dio Meta.
+    # Si termino, se arranca de cero otra vez: hay que volver a barrer la ventana entera para
+    # levantar lo que entro desde entonces.
+    # OJO: esa URL trae el access_token VIEJO embebido. Si se la usa tal cual despues de que
+    # el token vencio, Meta contesta 190 y parece que el token nuevo no sirve.
+    if estado.get("next") and not estado.get("completado"):
+        url, params = con_token_actual(estado["next"], token), {}
 
+    # IMPORTANTE: se sigue paging.next COMPLETO, no se rearma el pedido con el cursor 'after'.
+    # La URL 'next' de Meta trae parametros propios (__paging_token y otros) que el cursor solo no
+    # reemplaza: rearmando el pedido, la paginacion empieza a devolver paginas repetidas y se corta
+    # a la decima parte de los comentarios. Asi lo hace index.html, que es como se bajaron los
+    # 24.848 comentarios del reel de julio.
+    cursores_vistos = set()
     while True:
         data = pedir_con_reintentos(url, params)
 
-        lote = data.get("data", [])
+        # Cada comentario de primer nivel entra con respuesta_a vacio, y sus respuestas
+        # entran como filas propias apuntando al id del padre.
+        lote = []
+        for c in data.get("data", []):
+            c["respuesta_a"] = ""
+            lote.append(c)
+            for r in ((c.get("replies") or {}).get("data") or []):
+                r["respuesta_a"] = c["id"]
+                lote.append(r)
+            c.pop("replies", None)
+
         lote_nuevo = [c for c in lote if c["id"] not in ids_vistos]
         for c in lote_nuevo:
             ids_vistos.add(c["id"])
@@ -198,66 +247,116 @@ def obtener_comentarios(media_id, token):
             primer_escritura = False
             todos.extend(lote_nuevo)
 
+        # OJO: "pagina sin comentarios nuevos" NO es senal de que se atasco. En una corrida de
+        # acumulacion TODAS las paginas vienen repetidas, porque ya se bajaron antes. La unica
+        # senal real de atasco es que Meta devuelva DOS VECES el mismo cursor.
+
         print(f"  Progreso: {len(todos)} comentarios bajados...", end="\r")
 
-        paging = data.get("paging", {})
-        after = paging.get("cursors", {}).get("after") or cursor_de_next(paging.get("next"))
-
-        if not paging.get("next") or not after:
+        siguiente = (data.get("paging") or {}).get("next")
+        if not siguiente:
             guardar_estado({"completado": True})
             break
+        cursor = cursor_de_next(siguiente)
+        if cursor and cursor in cursores_vistos:
+            print()
+            print("AVISO: Meta devolvio dos veces el mismo cursor de paginacion. CORTO ACA para no "
+                  "girar en falso: lo bajado puede estar incompleto.")
+            guardar_estado({"next": siguiente, "completado": False})
+            break
+        if cursor:
+            cursores_vistos.add(cursor)
 
-        guardar_estado({"after": after, "completado": False})
-        params["after"] = after
+        guardar_estado({"next": siguiente, "completado": False})
+        url, params = siguiente, {}
 
+    # Reescritura final: deja el archivo con las columnas actuales aunque venga de una corrida
+    # vieja con menos columnas, y de paso queda ordenado y sin repetidos.
+    reescribir_todo(todos)
     print()
     return todos
 
 
-# --------------------------- eleccion del ganador ---------------------------
 
-def elegir_ganador(comentarios):
-    comentarios.sort(key=lambda c: int(c.get("like_count") or 0))
-    min_likes = int(comentarios[0].get("like_count") or 0)
+def shortcode_de_reel(url):
+    m = re.search(r"instagram\.com/(?:reel|reels|p|tv)/([A-Za-z0-9_-]+)", url or "")
+    return m.group(1) if m else ""
 
-    empatados = [c for c in comentarios if int(c.get("like_count") or 0) == min_likes]
-    # Orden estable (por id) para que, con la misma semilla, salga el mismo ganador.
-    empatados.sort(key=lambda c: c["id"])
 
-    semilla = SEMILLA if SEMILLA is not None else int.from_bytes(os.urandom(8), "big")
-    ganador = random.Random(semilla).choice(empatados)
+def resolver_media_id(token, shortcode):
+    """Igual que index.html: Pagina de FB -> cuenta IG -> buscar el permalink entre los posteos."""
+    cuentas = pedir_con_reintentos(f"{GRAPH_URL}/me/accounts",
+                                   {"access_token": token, "fields": "id,name,instagram_business_account", "limit": 100})
+    paginas = cuentas.get("data", [])
+    if not paginas:
+        raise RuntimeError("El token no administra ninguna Pagina de Facebook (ver Paso 0 del instructivo).")
 
-    print(f"\nTotal de comentarios: {len(comentarios)}  (guardados en {CSV_PATH})")
-    print(f"Menor cantidad de likes: {min_likes}  ->  {len(empatados)} comentarios empatados")
-    print(f"Semilla del sorteo: {semilla}")
-    print("\n=========================  GANADOR  =========================")
-    print(f"  @{ganador['username']}")
-    print(f"  \"{ganador.get('text', '')}\"")
-    print(f"  likes: {int(ganador.get('like_count') or 0)} | id: {ganador['id']} "
-          f"| fecha: {ganador.get('timestamp', '')}")
-    print("=============================================================")
-    print(f"\nAuditable: con {CSV_PATH} y SEMILLA = {semilla} se reproduce este mismo ganador.")
-
-    with open(GANADOR_PATH, "w", encoding="utf-8") as f:
-        f.write("GANADOR DEL SORTEO\n")
-        f.write(f"usuario:  @{ganador['username']}\n")
-        f.write(f"comentario: {ganador.get('text', '')}\n")
-        f.write(f"likes: {int(ganador.get('like_count') or 0)}\n")
-        f.write(f"id: {ganador['id']}\n")
-        f.write(f"fecha: {ganador.get('timestamp', '')}\n\n")
-        f.write(f"menor_cantidad_de_likes: {min_likes}\n")
-        f.write(f"comentarios_empatados_en_ese_minimo: {len(empatados)}\n")
-        f.write(f"semilla: {semilla}\n")
-        f.write("Reproducible: mismo comentarios.csv + misma semilla => mismo ganador.\n")
-    print(f"(guardado tambien en {GANADOR_PATH})")
+    for pagina in paginas:
+        ig = (pagina.get("instagram_business_account") or {}).get("id")
+        if not ig:
+            info = pedir_con_reintentos(f"{GRAPH_URL}/{pagina['id']}",
+                                        {"access_token": token, "fields": "instagram_business_account"})
+            ig = (info.get("instagram_business_account") or {}).get("id")
+        if not ig:
+            continue
+        print(f"Cuenta IG {ig} (pagina '{pagina.get('name','')}'). Busco el reel {shortcode}...")
+        url = f"{GRAPH_URL}/{ig}/media"
+        params = {"access_token": token, "fields": "id,permalink", "limit": 100}
+        for hoja in range(60):
+            data = pedir_con_reintentos(url, params)
+            for m in data.get("data", []):
+                if shortcode in (m.get("permalink") or ""):
+                    print(f"Reel encontrado. Media ID: {m['id']}")
+                    return m["id"]
+            nxt = (data.get("paging") or {}).get("next")
+            if not nxt:
+                break
+            url, params = nxt, {}
+            print(f"  ...pagina {hoja + 2} de posteos", end="\r")
+    raise RuntimeError(f"No encontre el reel {shortcode} en la cuenta. Pasa --media con el Media ID directo.")
 
 
 def main():
-    comentarios = obtener_comentarios(MEDIA_ID, ACCESS_TOKEN)
+    ap = argparse.ArgumentParser(description="Baja los comentarios de un posteo de Instagram a comentarios.csv")
+    ap.add_argument("--token", default=ACCESS_TOKEN, help="Token del Graph API Explorer (dura 1-2 h)")
+    ap.add_argument("--media", default="", help="Media ID del posteo")
+    ap.add_argument("--reel", default="", help="Link del reel (resuelve el Media ID solo)")
+    ap.add_argument("--reset", action="store_true", help="Borra el progreso y baja todo de cero")
+    ap.add_argument("--version", default=VERSION, help=f"Version de la Graph API (default {VERSION})")
+    a = ap.parse_args()
+
+    global GRAPH_URL
+    if a.version != VERSION:
+        GRAPH_URL = "https://graph.facebook.com/" + a.version
+        print(f"Uso la Graph API {a.version}")
+
+    token = (a.token or "").strip()
+    if not token or token == "PEGAR_ACA_EL_TOKEN":
+        sys.exit("ERROR: falta el token. Usa --token EAAG...")
+
+    if a.reset:
+        for p in (CSV_PATH, ESTADO_PATH):
+            if os.path.exists(p):
+                os.remove(p)
+        print("Progreso borrado: bajo todo de cero.")
+
+    media = (a.media or "").strip() or (MEDIA_ID if MEDIA_ID != "PEGAR_ACA_EL_MEDIA_ID" else "")
+    if not media:
+        sc = shortcode_de_reel(a.reel)
+        if not sc:
+            sys.exit("ERROR: pasa --media <id> o --reel <link del reel>.")
+        media = resolver_media_id(token, sc)
+
+    comentarios = obtener_comentarios(media, token)
     if not comentarios:
         print("No se encontraron comentarios.")
         return
-    elegir_ganador(comentarios)
+    respuestas = sum(1 for c in comentarios if c.get("respuesta_a"))
+    sin_likes = sum(1 for c in comentarios if int(c.get("like_count") or 0) == 0)
+    print(f"Listo: {len(comentarios)} comentarios en {CSV_PATH} (media {media}).")
+    print(f"  de primer nivel: {len(comentarios) - respuestas}  |  respuestas dentro de un hilo: {respuestas}")
+    print(f"Comentarios con 0 likes: {sin_likes}")
+    print('Sigue:  node preparar.js --csv comentarios.csv --menos-likes --excluir damiancivale --fecha "AAAA-MM-DDTHH:MM:00-03:00"')
 
 
 if __name__ == "__main__":

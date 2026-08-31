@@ -10,3 +10,7 @@ __pycache__/
 
 # Datos con el TEXTO de los comentarios: no se publican
 datos.json
+
+# Estado de las corridas: llevan ids de comentarios adentro
+estado_respuestas.json
+sonda_paginado.json
