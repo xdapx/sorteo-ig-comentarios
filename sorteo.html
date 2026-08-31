@@ -254,6 +254,7 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
     <div class="semilla" id="semilla"></div>
     <div style="text-align:center;margin-top:14px">
       <button id="bajar" class="btn-ghost" type="button">Descargar ganadores</button>
+      <p id="avisoBajar" class="muted" style="margin-top:8px" hidden></p>
     </div>
   </section>
 
@@ -497,7 +498,13 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
   const fmtF = d => new Intl.DateTimeFormat("es-AR",{timeZone:"America/Argentina/Buenos_Aires",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(d));
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  let DATOS = null, sorteando = false, ultimo = null;
+  let DATOS = null, sorteando = false, ultimo = null, guardar = null;
+
+  // Sólo existe cuando la página corre dentro del visor de artifacts. Tarda en resolver y puede
+  // dar null, así que no se espera: si llega, llega antes de que alguien toque el botón.
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then(d => { guardar = d; }).catch(() => {});
+  }
 
   async function cargar(){
     try {
@@ -655,7 +662,7 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
   // castellano de un doble clic; con coma parte los acentos y mete todo en una sola columna.
   // Las lineas que arrancan con # son el acta: sin la semilla y el criterio, la lista de
   // ganadores es solo una lista de nombres y no se puede rehacer el sorteo.
-  function bajarGanadores(){
+  async function bajarGanadores(){
     if (!ultimo) return;
     const u = ultimo, filas = [];
     const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
@@ -676,10 +683,31 @@ footer{margin-top:30px;text-align:center;font-size:12.5px;color:var(--muted)}
     u.suplentes.forEach((s, i) => filas.push(linea(s, i, "suplente")));
 
     const stamp = u.cuando.toISOString().slice(0,16).replace("T","_").replace(":","");
-    const blob = new Blob(["﻿" + filas.join("\r\n") + "\r\n"], {type:"text/csv;charset=utf-8"});
+    const nombre = "ganadores_" + stamp + ".csv";
+    const texto = "﻿" + filas.join("\r\n") + "\r\n";
+    const aviso = $("avisoBajar");
+    aviso.hidden = true;
+
+    // Adentro del visor de artifacts, el navegador no deja que la página baje nada por su
+    // cuenta: hay que pedírselo al visor, que le muestra al usuario un cartel de confirmación.
+    // Publicada como sitio web, esa API no existe y se usa el <a download> de toda la vida.
+    if (guardar) {
+      try {
+        await guardar.save({ filename: nombre, data: texto });
+      } catch (e) {
+        const code = e && e.code;
+        if (code && code !== "declined") {
+          aviso.textContent = "No se pudo descargar (" + code + ").";
+          aviso.hidden = false;
+        }
+      }
+      return;
+    }
+
+    const blob = new Blob([texto], {type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "ganadores_" + stamp + ".csv";
+    a.href = url; a.download = nombre;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }

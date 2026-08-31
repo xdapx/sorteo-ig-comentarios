@@ -41,3 +41,13 @@ fs.writeFileSync(path.join(dir, "sorteo.html"), html);
 console.log("sorteo.html  " + (html.length / 1024).toFixed(0) + " KB");
 console.log("  comentarios:  " + datos.comentarios.length + " (sin el texto)");
 console.log("  miniatura:    " + (miniatura ? (miniatura.length / 1024).toFixed(0) + " KB embebida" : "NO"));
+
+// Version para publicar como artifact: ahi la pagina se sirve dentro de un <head>/<body> que
+// pone la propia herramienta, asi que va solo el contenido con el title y el style adelante.
+// El visor bloquea las descargas que arranca la pagina, asi que el boton de bajar los
+// ganadores usa claude.use("downloads"); hay que publicarla con capabilities {downloads:true}.
+const artifact = "<title>" + html.split("<title>")[1].split("</title>")[0] + "</title>\n" +
+  "<style>\n" + html.split("<style>")[1].split("</style>")[0] + "\n</style>\n" +
+  html.split("<body>")[1].split("</body>")[0];
+fs.writeFileSync(path.join(dir, "sorteo-artifact.html"), artifact);
+console.log("sorteo-artifact.html  " + (artifact.length / 1024).toFixed(0) + " KB (publicar con capabilities {downloads:true})");
