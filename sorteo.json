@@ -1,0 +1,40 @@
+{
+  "titulo": "5 lugares para correr en karts en Zárate",
+  "premio": "Una jornada en el Kartódromo Internacional de Zárate el 18/10: karts de 13 HP en un circuito de 800 m, con vuelta de reconocimiento, 3 vueltas de clasificación, 16 de carrera y transmisión en vivo.",
+  "organizador": "@damiancivale",
+  "reel": "https://www.instagram.com/reel/DdhWb7-slMg/",
+  "mediaId": "17874002127582693",
+  "ganadores": 5,
+  "suplentes": 5,
+  "cadena": "quicknet",
+  "fondo": "fondo-karts.jpg",
+  "tema": {
+    "acento": "#ffc21a",
+    "acento2": "#ff6b00"
+  },
+  "repo": "https://github.com/xdapx/sorteo-ig-comentarios",
+  "pages": "https://xdapx.github.io/sorteo-ig-comentarios/",
+  "requisitos": [
+    "comentar en el reel antes del cierre",
+    "seguir a @damiancivale",
+    "seguir a @torneoskartzn"
+  ],
+  "reemplazos": "Después del sorteo se controla a mano que cada ganador siga a las dos cuentas. Si alguno no cumple, pasa al siguiente suplente en orden y se publica el motivo.",
+  "anuncio": "",
+  "archivo": {
+    "participantes": "",
+    "sorteo": ""
+  },
+  "participantes": "participantes.json",
+  "participantesSha256": "7a19290a0e006afa021f781088ad7bff55d61cf1991aac671fc8836daebdd418",
+  "evidencia": "evidencia.json",
+  "evidenciaSha256": "a070facf37a3eea0bb8f77e59296e40d32b2c6474759e657b3f33795ce98b83c",
+  "csvSha256": "021048649e3269dced0f068c72eb1544f220e1b0dbf2431560e72b44c428a41a",
+  "criterio": "todos",
+  "minLikes": null,
+  "likes": "",
+  "likesSha256": "",
+  "fechaSorteo": "2026-10-11T21:00:00-03:00",
+  "ronda": 32986612,
+  "prueba": false
+}

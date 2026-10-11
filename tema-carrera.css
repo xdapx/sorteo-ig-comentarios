@@ -1,0 +1,173 @@
+/* Tema "carrera": va DESPUÉS de sorteo.css y lo pisa. Vidrio oscuro sobre la portada del reel,
+   el amarillo y el naranja del reel como acento (sorteo.json → tema), y tipografía condensada
+   para títulos y números. Sirve para sortear.html y verificar.html. */
+:root{
+  --bg:#0b0b0e; --card:rgba(18,18,23,.74); --border:rgba(255,255,255,.09); --txt:#f5f5f7;
+  --muted:#a6a6b0; --accent:#ffc21a; --accent2:#ff6b00; --ok:#3ddc84; --warn:#ffb340; --err:#ff6b62;
+  --gold:var(--accent); --gold-bg:rgba(255,194,26,.07); --gold-bd:rgba(255,194,26,.42);
+  --silver:#d9dce4; --silver-bg:rgba(255,255,255,.035); --silver-bd:rgba(255,255,255,.12);
+  --hueco:rgba(0,0,0,.34);
+  --sombra:0 1px 0 rgba(255,255,255,.04) inset,0 24px 50px -30px rgba(0,0,0,.95);
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+}
+body{background:var(--bg);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+/* Fondo: la portada del reel desenfocada, apagada hacia abajo, con un halo cálido arriba. */
+body::before{content:"";position:fixed;inset:-40px;z-index:-2;
+  background:var(--fondo) center 30%/cover no-repeat,var(--bg);
+  filter:blur(26px) saturate(1.25) brightness(.62);transform:scale(1.06)}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(900px 420px at 50% -8%,rgba(255,170,30,.22),transparent 70%),
+             linear-gradient(180deg,rgba(11,11,14,.35) 0%,rgba(11,11,14,.82) 42%,rgba(11,11,14,.97) 100%)}
+.wrap{max-width:880px}
+.card{background:var(--card);-webkit-backdrop-filter:blur(16px) saturate(1.2);backdrop-filter:blur(16px) saturate(1.2);border-radius:20px;padding:20px}
+.link{color:var(--accent)}
+code{background:var(--hueco)}
+
+/* ---- Barra de marca ---- */
+.marca{background:rgba(14,14,18,.6);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:14px}
+.marca .logo .pin{background:linear-gradient(140deg,var(--accent),var(--accent2));color:#1b1200}
+.marca .sello{color:var(--ok);border-color:rgba(61,220,132,.35);background:rgba(61,220,132,.08)}
+
+/* ---- Cabecera común ---- */
+header .org{color:var(--accent);font-family:var(--display);font-weight:700;letter-spacing:2px}
+h1{font-family:var(--display);font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:.2px;line-height:1}
+h2{font-family:var(--display);font-size:21px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+h2 .n{background:linear-gradient(140deg,var(--accent),var(--accent2));color:#1b1200;font-family:system-ui,sans-serif}
+
+/* ---- Hero ---- */
+.hero{display:grid;grid-template-columns:150px 1fr;gap:22px;align-items:center;margin:6px 0 18px}
+.poster{position:relative;display:block;border-radius:18px;overflow:hidden;aspect-ratio:9/16;
+  box-shadow:0 0 0 2px rgba(255,194,26,.55),0 26px 50px -22px rgba(0,0,0,.9);transform:rotate(-2.5deg);
+  transition:transform .35s cubic-bezier(.2,.9,.3,1.2)}
+.poster:hover{transform:rotate(0) scale(1.03)}
+.poster img{width:100%;height:100%;object-fit:cover;display:block}
+.poster .tag{position:absolute;left:8px;right:8px;bottom:8px;text-align:center;font-size:11.5px;font-weight:700;
+  color:#fff;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);border-radius:9px;padding:6px 4px}
+.hero .org{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:2.2px;text-transform:uppercase;color:var(--accent)}
+.hero h1{font-size:clamp(34px,7.4vw,62px);margin:6px 0 10px;text-shadow:0 4px 30px rgba(0,0,0,.6)}
+.hero h1 em{font-style:inherit;background:linear-gradient(92deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .premio{font-size:15px;color:#d7d7de;max-width:560px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:-4px;grid-column:2}
+.chip{display:inline-flex;align-items:baseline;gap:6px;padding:7px 12px;border-radius:999px;font-size:13px;color:var(--muted);
+  background:rgba(0,0,0,.38);border:1px solid var(--border)}
+.chip b{font-family:var(--display);font-size:19px;font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
+@media (max-width:620px){
+  .hero{grid-template-columns:96px 1fr;gap:14px;align-items:start}
+  .hero h1{font-size:clamp(28px,8.6vw,40px)}
+  .hero .premio{font-size:13.5px}
+  .chips{grid-column:1/-1;margin-top:4px}
+}
+
+/* ---- Bandera a cuadros (divisor) ---- */
+.cuadros{height:12px;border-radius:3px;margin:0 0 16px;opacity:.9;
+  background:repeating-conic-gradient(#f5f5f7 0 25%,#111 0 50%) 0 0/12px 12px;
+  -webkit-mask:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+
+/* ---- Largada: semáforo + reloj ---- */
+.largada{text-align:center;padding:24px 18px 22px;overflow:hidden;position:relative}
+.semaforo{display:inline-flex;gap:clamp(6px,2vw,12px);padding:12px clamp(10px,3vw,18px);border-radius:16px;
+  background:linear-gradient(180deg,#1b1b20,#0d0d10);border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 18px 30px -18px #000,inset 0 1px 0 rgba(255,255,255,.06);margin-bottom:16px}
+.col{display:flex;flex-direction:column;gap:7px;padding:7px;border-radius:11px;background:#060608}
+.luz{width:clamp(22px,6vw,34px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3a1414,#1a0707 70%);
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.8);transition:background .08s,box-shadow .08s}
+.col.on .luz{background:radial-gradient(circle at 35% 30%,#ff8a80,#ff1f1f 45%,#a10000 100%);
+  box-shadow:0 0 18px 4px rgba(255,40,40,.65),inset 0 -2px 4px rgba(0,0,0,.35)}
+.semaforo.verde .luz{background:radial-gradient(circle at 35% 30%,#b6ffcf,#2fe27a 45%,#0b8f43 100%);
+  box-shadow:0 0 20px 5px rgba(47,226,122,.6)}
+.reloj{display:flex;justify-content:center;gap:clamp(6px,2vw,12px);margin:2px 0 4px}
+.seg{min-width:clamp(58px,15vw,82px);padding:10px 6px 8px;border-radius:13px;background:var(--hueco);border:1px solid var(--border)}
+.seg b{display:block;font-family:var(--display);font-weight:800;font-size:clamp(32px,9vw,50px);line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--txt)}
+.seg span{display:block;font-size:10.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.reloj.listo .seg b{color:var(--accent)}
+.cuando-txt{font-size:13.5px;color:var(--muted);margin-top:10px}
+.cuando-txt b{color:var(--txt)}
+.btn-go{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;margin-top:18px;min-width:260px;
+  padding:17px 34px;border:0;border-radius:16px;cursor:pointer;overflow:hidden;
+  font-family:var(--display);font-size:25px;font-weight:800;font-style:italic;letter-spacing:.6px;text-transform:uppercase;color:#1b1200;
+  background:linear-gradient(100deg,var(--accent),var(--accent2));box-shadow:0 16px 34px -14px rgba(255,120,0,.85);
+  transition:transform .12s,filter .2s,box-shadow .2s}
+.btn-go::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);
+  transform:translateX(-120%);animation:brillo 2.8s ease-in-out infinite}
+.btn-go:hover:not(:disabled){filter:brightness(1.07)} .btn-go:active:not(:disabled){transform:scale(.97)}
+.btn-go:disabled{cursor:default;filter:grayscale(.85) brightness(.55);box-shadow:none}
+.btn-go:disabled::after{animation:none;opacity:0}
+@keyframes brillo{0%,55%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+.largada .nota{margin-top:14px}
+.largada .estado{color:var(--accent)}
+
+/* ---- Grilla de largada (ganadores) ---- */
+.section-lbl{font-family:var(--display);font-size:17px;letter-spacing:3px;color:var(--txt);display:flex;align-items:center;gap:12px;justify-content:center}
+.section-lbl::before,.section-lbl::after{content:"";flex:1;max-width:140px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25))}
+.section-lbl::after{transform:scaleX(-1)}
+.grilla{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+/* Como en una grilla real: la columna derecha larga medio puesto más atrás. */
+.grilla .slot:nth-child(even){transform:translateY(34px)}
+.grilla .slot:last-child:nth-child(odd){grid-column:1/-1;max-width:calc(50% - 7px)}
+.grilla{padding-bottom:34px}
+@media (max-width:560px){.grilla{grid-template-columns:1fr;padding-bottom:0}.grilla .slot:nth-child(even){transform:none}.grilla .slot:last-child:nth-child(odd){max-width:none}}
+.slot{position:relative;display:flex;align-items:center;gap:13px;padding:14px 16px;border-radius:16px;min-height:74px;overflow:hidden;
+  background:var(--card);border:1px solid var(--border);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  opacity:0;animation:entraSlot .5s cubic-bezier(.2,.9,.3,1) forwards}
+@keyframes entraSlot{from{opacity:0;translate:0 14px}to{opacity:1;translate:0 0}}
+.slot .pos{flex:none;font-family:var(--display);font-weight:800;font-style:italic;font-size:30px;line-height:1;color:var(--muted);min-width:40px}
+.slot .pos small{font-size:15px;opacity:.7}
+.slot .cuerpo{min-width:0;flex:1}
+.rodillo{height:30px;overflow:hidden;-webkit-mask:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent);mask:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent)}
+.rodillo ul{list-style:none;margin:0;padding:0;will-change:transform}
+.rodillo li{height:30px;line-height:30px;font-weight:800;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#c9c9d1}
+.slot .det{font-size:12.5px;color:var(--muted);margin-top:3px;min-height:18px}
+.slot.won{border-color:var(--gold-bd);background:linear-gradient(100deg,rgba(255,194,26,.13),rgba(255,107,0,.06) 60%,rgba(18,18,23,.7));
+  box-shadow:0 0 0 1px rgba(255,194,26,.25),0 18px 40px -22px rgba(255,140,0,.7)}
+.slot.won .pos{background:linear-gradient(160deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.slot.won .rodillo{-webkit-mask:none;mask:none}
+.slot.won .rodillo li{color:var(--txt)}
+/* Barrido a cuadros que cruza la tarjeta cuando frena el nombre. */
+.slot.won::after{content:"";position:absolute;top:0;bottom:0;width:46px;left:-60px;opacity:.5;
+  background:repeating-conic-gradient(rgba(255,255,255,.9) 0 25%,rgba(0,0,0,.9) 0 50%) 0 0/10px 10px;
+  animation:barrido .7s ease-out forwards}
+@keyframes barrido{to{left:110%}}
+.slot .chica{margin-left:auto}
+
+/* ---- Boxes (suplentes) ---- */
+.boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:4px}
+.box{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:12px;background:var(--silver-bg);border:1px solid var(--silver-bd);
+  opacity:0;animation:entraSlot .4s ease forwards}
+.box .n{flex:none;font-family:var(--display);font-weight:800;font-size:17px;color:var(--muted);min-width:30px}
+.box .u{font-weight:700;font-size:14.5px;word-break:break-all;min-width:0}
+.box a{margin-left:auto;font-size:12px;white-space:nowrap}
+
+/* ---- Código del sorteo ---- */
+.codigo .val{border:1px solid var(--gold-bd);background:rgba(0,0,0,.45);color:var(--accent);letter-spacing:.5px;
+  box-shadow:0 0 0 4px rgba(255,194,26,.06)}
+.acciones{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.btn-ghost{background:rgba(255,255,255,.05);border-color:var(--border);border-radius:11px}
+.btn-ghost:hover{border-color:var(--gold-bd)}
+.btn-ghost.fuerte{background:linear-gradient(100deg,var(--accent),var(--accent2));color:#1b1200;border:0;font-weight:800}
+
+/* ---- Cómo funciona ---- */
+.pasos{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;counter-reset:p}
+.pasos li{counter-increment:p;padding:14px;border-radius:14px;background:var(--hueco);border:1px solid var(--border);font-size:13.5px;color:#cfcfd6}
+.pasos li::before{content:counter(p);display:block;font-family:var(--display);font-weight:800;font-style:italic;font-size:28px;line-height:1;margin-bottom:6px;
+  background:linear-gradient(160deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pasos b{color:var(--txt)}
+
+/* ---- Piezas de sorteo.css en el tema ---- */
+.dato{background:var(--hueco)}
+.dato.destaca{border-color:var(--gold-bd);background:rgba(255,194,26,.07)}
+.dato.destaca b{color:var(--accent)}
+.btn-main{color:#1b1200;background:linear-gradient(100deg,var(--accent),var(--accent2));box-shadow:0 12px 30px -14px rgba(255,120,0,.8)}
+.tarjeta{background:var(--card)}
+.buscar input:focus,.entrada:focus{outline-color:var(--accent)}
+.banner{border-radius:14px}
+details.card summary{font-family:var(--display);font-size:19px;text-transform:uppercase;letter-spacing:.4px}
+
+#confeti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
+
+@media (prefers-reduced-motion:reduce){
+  .btn-go::after,.slot.won::after{animation:none;display:none}
+  .slot,.box{animation:none;opacity:1}
+  .poster{transform:none;transition:none}
+}

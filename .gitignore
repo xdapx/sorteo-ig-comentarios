@@ -18,3 +18,6 @@ datos.json
 estado_respuestas.json
 sonda_paginado.json
 sorteo-artifact.html
+
+# Estado del sorteo del Alpine, guardado antes del de karts (lleva datos personales)
+alpine/

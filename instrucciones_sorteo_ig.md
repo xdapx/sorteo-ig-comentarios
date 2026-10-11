@@ -1,96 +1,100 @@
-# Instructivo completo: extraer comentarios de Instagram y encontrar el de MENOS likes
+# El token de Meta para bajar los comentarios
 
-Reel del sorteo: https://www.instagram.com/reel/DaV38Tqswr3/ (cuenta **@damiancivale**, ~119 mil comentarios)
+Instructivo para el dueño de la cuenta (Damián), en página aparte y escrita para él:
+**https://claude.ai/code/artifact/1918a4a2-27d2-44d0-9bb4-94322a90b4a6**
 
-**Importante:** por el volumen (119 mil comentarios), esto solo se puede hacer con la API oficial de Meta. Contar a mano o mirar la app no sirve. Necesitás ser **admin de la cuenta @damiancivale** (o que el admin haga estos pasos), porque el token solo da acceso a los datos de la propia cuenta.
+Este archivo es la referencia técnica: por qué cada cosa es como es. Verificado contra la
+documentación de Meta el **31/08/2026**.
 
-Todo esto lo hace la persona dueña/admin de @damiancivale, sin necesidad de saber programar (son todo clicks, salvo el último paso que es correr un script ya armado).
+## Lo que hay que pedir
 
----
-
-## Paso 0 — Requisito: cuenta profesional vinculada a Facebook
-1. Abrir Instagram → Perfil → tocar el ícono de menú (☰) → **Configuración y privacidad**
-2. Ir a **Cuenta** → **Tipo de cuenta y herramientas** → verificar que diga **Business** o **Creator** (si dice "Personal", cambiarla ahí mismo)
-3. Ir a **Configuración → Cuenta → Cuentas vinculadas** → conectar/verificar que esté vinculada a una **Página de Facebook** (si no existe la página, Instagram ofrece crearla automáticamente en este paso)
-
-Sin esto, ninguno de los pasos siguientes va a funcionar.
-
----
-
-## Paso 1 — Crear una app en Meta for Developers (gratis, 2 minutos)
-1. Entrar a https://developers.facebook.com/apps con la cuenta de Facebook que administra la Página
-2. Botón **"Crear app"**
-3. Tipo de app: elegir **"Otro"** → siguiente → **"Empresa"** (o "Ninguno", cualquiera sirve)
-4. Ponerle un nombre (ej: "Sorteo Reel") y crear
-5. Quedará en el **Panel de la app** — de ahí sacamos dos datos que vamos a necesitar después: **App ID** y **App Secret** (están en Configuración → Básica del menú izquierdo). Anotarlos.
-
----
-
-## Paso 2 — Generar el Access Token (Graph API Explorer)
-1. Ir a https://developers.facebook.com/tools/explorer
-2. Arriba a la derecha, en el selector de app, elegir la app creada en el Paso 1
-3. En "User or Page", dejar **User Token**
-4. Click en el botón de permisos (o "Add a Permission") y tildar:
-   - `instagram_basic`
-   - `pages_show_list`
-   - `pages_read_engagement`
-5. Click **"Generate Access Token"** → se abre un login de Facebook → aceptar los permisos con la cuenta que administra la Página de @damiancivale
-6. Copiar el token largo que aparece en el cuadro de texto de arriba (dura solo 1-2 horas)
-
-### Paso 2.1 — Extenderlo a token de larga duración (60 días)
-Como el proceso con 119 mil comentarios puede tardar y convenir reintentar sin repetir todo, conviene canjear ese token corto por uno largo. En la misma página del Explorer, en el campo GET pegar esta URL completa (reemplazando los 4 valores en MAYÚSCULA por los datos propios: App ID y App Secret del Paso 1, y el token corto del Paso 2):
+Token de **usuario** de Facebook, generado en el [Graph API Explorer](https://developers.facebook.com/tools/explorer),
+con estos cuatro permisos:
 
 ```
-https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=APP_ID&client_secret=APP_SECRET&fb_exchange_token=TOKEN_CORTO
+instagram_basic  instagram_manage_comments  pages_show_list  pages_read_engagement
 ```
 
-Esto se puede pegar directo en la barra de direcciones del navegador (no hace falta el Explorer para este paso). Devuelve un JSON con un `access_token` nuevo que dura ~60 días. **Ese es el que vamos a usar en el script.**
+**Los cuatro son el mínimo, no se puede pedir menos.** `instagram_manage_comments` no es
+opcional aunque solo queramos leer: desde el 27/08/2024 el campo `username` del comentario
+no se devuelve sin él, y sin username no hay ganador identificable.
 
----
+## Las cinco cosas que hacen fallar esto
 
-## Paso 3 — Obtener el Page ID
-De vuelta en el Graph API Explorer, en el campo GET escribir:
-```
-me/accounts
-```
-→ Submit. Devuelve una lista de páginas administradas; copiar el `id` de la Página vinculada a @damiancivale.
+1. **La tarea sobre la Página.** `instagram_manage_comments` solo lo puede otorgar alguien
+   que tenga la tarea **Actividad de la comunidad** (`PROFILE_PLUS_MODERATE`) sobre la Página
+   vinculada a la cuenta. Si el acceso vino por un portafolio de Business Manager con solo
+   Anuncios o Contenido, el permiso no sale nunca — el token se genera igual pero el GET de
+   comentarios devuelve error. Curiosamente la tabla oficial no lista ese permiso en la fila
+   "Control total". Síntoma: se regenera el token tres veces y pasa lo mismo.
+2. **Las pantallas del popup.** Al generar el token, Facebook pregunta en pantallas separadas
+   qué Páginas y qué cuentas de Instagram incluir. Si queda una sin tildar, el token sale pero
+   no sirve. Es el error más común.
+3. **El Explorer necesita una app.** No existe una app genérica: hace falta cuenta de
+   desarrollador y una app donde la persona tenga rol. La frase de la doc *"you can use the
+   Graph API Explorer instead and skip steps 1 and 2"* NO significa saltear la creación de la app
+   (los pasos 1 y 2 son configurar e implementar Facebook Login).
+4. **El caso de uso del asistente.** Si se crea la app eligiendo un caso de uso de Instagram,
+   Meta agrega los permisos `instagram_business_*` del otro camino (Instagram Login, host
+   `graph.instagram.com`) y los cuatro de arriba no aparecen en el desplegable. Hay que elegir
+   **Otro**.
+5. **No hace falta App Review ni verificación de negocio.** Con Acceso Estándar y la app en
+   modo desarrollo alcanza, siempre que quien genera el token tenga rol en la app.
 
-## Paso 4 — Obtener el Instagram User ID
-Reemplazando `PAGE_ID`:
-```
-PAGE_ID?fields=instagram_business_account
-```
-Devuelve `{"instagram_business_account": {"id": "..."}}`. Ese `id` es el **IG User ID**.
+## Límites reales del endpoint
 
-## Paso 5 — Obtener el Media ID del reel
-Reemplazando `IG_USER_ID`:
-```
-IG_USER_ID/media?fields=id,caption,permalink&limit=25
-```
-Buscar en los resultados el que tenga `DaV38Tqswr3` en el `permalink`. Copiar su `id` — ese es el **MEDIA_ID**.
+`GET /{ig-media-id}/comments?fields=id,username,text,like_count,timestamp`
 
-> Si el reel es viejo y no aparece en los primeros 25, agregar `&limit=100`, o repetir la consulta con el cursor `after` que trae la respuesta en `paging.next`.
+- **Máximo 50 comentarios por página**, aunque se pida `limit=100`. `sorteo_ig.py` pide 50.
+- **Solo comentarios de primer nivel.** Las respuestas a otros comentarios NO vienen (habría
+  que pedirlas con expansión del campo `replies`). Esto se avisa en el anuncio del sorteo.
+- **Los comentarios de cuentas restringidas por el dueño no se devuelven**, y no hay forma de
+  saberlo desde los datos. Por eso el contador de comentarios que muestra Instagram nunca va a
+  coincidir con el CSV: no sirve como control de integridad. El control válido es que la última
+  página venga sin cursor `after`.
+- Orden cronológico inverso. No se puede filtrar por fecha.
+- Rate limit por caso de uso: `4800 × impresiones de las últimas 24 h`, en ventana móvil de
+  24 h. Al pasarse llega el código 80002 y el header `X-Business-Use-Case-Usage` dice cuántos
+  minutos faltan para recuperar acceso. El script ya espera y reintenta.
 
----
+**`like_count` devuelve valores reales de comentarios ajenos**: verificado con el CSV de julio
+de 2026 (24.848 comentarios bajados por este mismo endpoint, con 599 en cero, 1.347 en uno y
+4.301 en tres). La documentación no lo garantiza explícitamente, así que si alguna vez vinieran
+todos en cero, el criterio "menos likes" se queda sin dato — se comprueba con una sola llamada
+de 5 comentarios antes de la corrida larga.
 
-## Paso 6 — Correr el script que extrae y ordena los comentarios
-Con el **Access Token largo** (Paso 2.1) y el **Media ID** (Paso 5), completar esos dos valores en el archivo `sorteo_ig.py` y correr:
-```
-pip install requests
-python sorteo_ig.py
-```
+## Versión de la API
 
-Con 119 mil comentarios el proceso tarda bastante (son ~1.200 páginas de 100 comentarios cada una). El script:
-- Guarda el progreso en un CSV (`comentarios.csv`) a medida que avanza, así si se corta a mitad de camino no se pierde lo ya bajado
-- Si Meta devuelve error de límite de uso (código 429 o mensaje de rate limit), espera y reintenta solo automáticamente
-- Al terminar, muestra el/los comentarios con menos likes
+`sorteo_ig.py` usa **v21.0**, que es con la que se bajó el reel de julio y sigue soportada
+(vence el 21/01/2027). La vigente hoy es v26.0 y los ejemplos de la doc usan v25.0. Si Meta
+rechazara la versión: `python sorteo_ig.py --version v25.0 ...`.
 
----
+## Duración del token y seguridad
 
-## Resumen de lo que hay que mandar
-Al final, lo único que necesito para correr el sorteo es:
-1. El **Access Token largo** (Paso 2.1)
-2. El **Media ID** (Paso 5)
+Dura **una o dos horas** y Meta avisa que ese plazo puede cambiar sin aviso. El valor real de
+ese token se lee con `GET /debug_token` (campo `expires_at`), no se adivina.
 
-### Nota de seguridad
-El token no es contraseña ni permite publicar/borrar nada — solo lee datos públicos de la propia cuenta. Aun así, no compartirlo en grupos ni redes, solo en un canal privado y de confianza.
+Con 4.700 comentarios la descarga son minutos, así que **no hace falta canjearlo por uno largo**.
+Si alguna vez hiciera falta (reel de 100 mil comentarios), el canje es
+`GET /oauth/access_token?grant_type=fb_exchange_token&client_id=…&client_secret=…&fb_exchange_token=…`
+y dura ~60 días — pero expone el **App Secret**, así que lo corre el dueño de la app desde su
+máquina, nunca el dueño de la cuenta de Instagram y nunca desde el navegador.
+
+**Qué puede hacer quien tenga ese token** (esto va dicho antes de pedirlo, no después):
+leer comentarios con su autor y sus likes; **responder, ocultar y borrar comentarios**; apagar
+los comentarios de cualquier publicación; leer datos ya públicos del perfil y la lista de
+publicaciones. **No** puede publicar posteos ni historias, **no** puede borrar publicaciones,
+**no** puede leer mensajes privados, **no** puede ver estadísticas privadas, **no** puede tocar
+el perfil y **no** es la contraseña.
+
+Se revoca desde Facebook: Configuración y privacidad → Configuración → Apps y sitios web →
+eliminar la app.
+
+## Para la próxima: sacar al cliente de la consola
+
+El camino más corto no es este. Si la app la crea y administra Vesl, se le puede mandar al
+dueño de la cuenta **un solo link** de OAuth con los permisos ya adentro
+(`https://www.facebook.com/v26.0/dialog/oauth?client_id=…&redirect_uri=https://www.facebook.com/connect/login_success.html&response_type=token%20granted_scopes&scope=…`):
+él lo abre, tilda todo y copia la URL de la barra, que trae el token y los permisos concedidos.
+No necesita cuenta de desarrollador si se lo agrega como **Evaluador** de la app. Requiere
+registrar ese `redirect_uri` una vez y probar el link con la cuenta propia antes de mandarlo.

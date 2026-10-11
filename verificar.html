@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verificar sorteo</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="fuentes/fuentes.css">
+<link rel="stylesheet" href="sorteo.css">
+<link rel="stylesheet" href="tema-carrera.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="marca">
+    <div class="logo"><span class="pin">V</span>Vesl <em>Sorteos</em></div>
+    <div class="sello">&#10003; Verificable<span> con azar público</span></div>
+  </div>
+  <header>
+    <div class="org" id="org"></div>
+    <h1>Verificación del sorteo</h1>
+    <p class="premio" id="titulo"></p>
+    <p style="margin-top:8px"><a id="reel" class="link" target="_blank" rel="noopener">Ver el reel</a></p>
+  </header>
+
+  <div id="bannerPrueba" class="banner hidden"></div>
+  <div id="bannerManual" class="banner hidden"></div>
+  <div id="bannerAviso" class="banner hidden"></div>
+  <div id="bannerError" class="banner err hidden"></div>
+
+  <section class="card">
+    <p class="explica" style="margin:0">Todo lo de esta página lo calcula <b>tu navegador</b>, ahora, con datos públicos: la lista de participantes, un número al azar que publica un servicio independiente, y un cálculo que cualquiera puede repetir. No hay nada que dependa de confiar en el organizador.</p>
+  </section>
+
+  <section class="card" id="cardPadron">
+    <h2><span class="n">1</span> La lista de participantes</h2>
+    <div class="tablero hidden" id="tablero"></div>
+    <div class="reparto hidden" id="reparto"></div>
+    <p class="muted criterio" id="criterio"></p>
+    <p class="muted criterio" id="requisitos"></p>
+    <p class="muted criterio">Se sortean <b id="cantidades"></b>.</p>
+    <div class="buscar">
+      <input id="buscar" placeholder="¿Estás en la lista? Escribí tu usuario" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div id="buscarRes" class="buscar-res"></div>
+    </div>
+    <div class="chk" id="chkHash">Verificando la lista…</div>
+    <h3 class="sub-h">¿Cuándo se publicó la lista?</h3>
+    <div id="anclas" class="muted">…</div>
+    <p class="muted" style="margin-top:10px">La lista completa está en <a id="vPadron" class="link" href="participantes.json" target="_blank" rel="noopener">participantes.json</a><span id="vLikesTxt" class="hidden">, y los likes de todos los comentarios en <a id="vLikes" class="link" href="likes.json" target="_blank" rel="noopener">likes.json</a> (ahí se ve cuál era el mínimo y quiénes lo tenían)</span>. Lo que importa es que haya existido <b>antes</b> de que saliera el número al azar: por eso se publica con anticipación y se anuncia su huella.</p>
+  </section>
+
+  <section class="card" id="cardSemilla">
+    <h2><span class="n">2</span> El número al azar</h2>
+    <p class="explica" style="text-align:left;margin:0 0 10px">Lo publica <a class="link" href="https://drand.love" target="_blank" rel="noopener">drand</a> (Cloudflare, EPFL, Kudelski y otros) cada 3 segundos, firmado. El sorteo usa el de un momento anunciado de antemano: <b id="fechaRondaTxt">…</b>. Ese número no existe antes de ese segundo; nadie lo conoce ni lo puede cambiar.</p>
+    <div class="cuando">
+      <div class="lbl">Ronda <b id="ronda">#…</b> de drand, publicada el</div>
+      <div class="fecha" id="fechaRonda">…</div>
+      <div class="countdown" id="countdown"></div>
+    </div>
+    <p class="muted" style="margin-top:8px">Está en <a id="vDrand1" class="link" target="_blank" rel="noopener">api.drand.sh</a> y en <a id="vDrand2" class="link" target="_blank" rel="noopener">drand.cloudflare.com</a>; el campo <code>randomness</code> es la semilla. Datos de la cadena: <a id="vInfo" class="link" target="_blank" rel="noopener">info</a>.</p>
+    <div id="semillaBox" class="hidden">
+      <div class="row-k" style="margin-top:8px"><span>Semilla (randomness)</span><code id="sSemilla"></code></div>
+      <div class="row-k"><span>Confirmación</span><span id="sFuentes"></span></div>
+    </div>
+    <p id="estado" class="estado"></p>
+    <div class="row hidden" id="rowReintentar"><button id="reintentar" class="btn-ghost">Reintentar</button></div>
+  </section>
+
+  <section class="card hidden" id="cardResultado">
+    <h2><span class="n">3</span> El resultado, rehecho en tu navegador</h2>
+    <p class="muted">Con la lista y la semilla de arriba, tu navegador acaba de calcular el orden de todos los participantes. Esto es lo que da:</p>
+    <div class="section-lbl" style="margin-top:14px">Ganadores</div>
+    <ol class="lista gold" id="listaGan"></ol>
+    <div class="section-lbl">Suplentes (en orden)</div>
+    <ol class="lista silver" id="listaSup"></ol>
+    <p class="muted" id="evidenciaTxt" style="margin-top:10px"></p>
+    <div class="codigo" style="margin-top:18px">
+      <div class="lbl">Código del sorteo (calculado acá)</div>
+      <code class="val" id="codigo"></code>
+      <div class="sub">Si coincide con el código que publicó el organizador, el sorteo publicado es exactamente este.</div>
+    </div>
+    <div style="margin-top:14px">
+      <input id="codigoPub" class="entrada" placeholder="Pegá el código publicado para compararlo" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div id="codigoRes" class="res"></div>
+    </div>
+  </section>
+
+  <details class="card" id="como">
+    <summary>Cómo se sortea</summary>
+    <div class="cuerpo">
+      <ol>
+        <li id="comoLista"><b>La lista.</b> Se bajan todos los comentarios del reel con la API oficial de Instagram hasta la fecha de corte. Cada usuario entra <b>una sola vez</b>, haya comentado 1 o 500 veces. La lista se publica antes del sorteo con su huella (SHA-256) y esa huella se anuncia en Instagram.</li>
+        <li><b>El número al azar no lo elige nadie.</b> Sale de una ronda de drand anunciada de antemano; ese número no existe hasta el segundo exacto en que se publica y no se puede cambiar.</li>
+        <li><b>El orden.</b> Con ese número como semilla, a cada participante se le calcula un puntaje (SHA-256 de <code>semilla:usuario</code>) y se ordenan de menor a mayor. Los primeros son los ganadores; los que siguen, los suplentes.</li>
+        <li><b>Sin repetir.</b> Misma lista + misma ronda = siempre el mismo resultado y el mismo código. No hay forma de "tirar de nuevo" hasta que salga alguien.</li>
+        <li><b>Reemplazos.</b> Si un ganador no cumple los requisitos publicados, pasa al siguiente suplente <b>en orden</b> y se publica el motivo. El organizador no elige a quién.</li>
+      </ol>
+    </div>
+  </details>
+
+  <details class="card" id="reproducir">
+    <summary>Reproducilo en tu computadora</summary>
+    <div class="cuerpo">
+      <h4>1. La huella de la lista</h4>
+      <p>Tiene que dar <code id="vHashEsperado">…</code>. Es el SHA-256 de los bytes UTF-8 de cada usuario seguido de un salto de línea, en el orden del archivo:</p>
+      <pre>jq -r '.usuarios[]' participantes.json | sha256sum</pre>
+      <h4>2. La ronda</h4>
+      <p><code>ronda = floor((t − 1692803367) / 3) + 1</code>, con <code>t</code> la fecha del sorteo en segundos (epoch). Los valores 1692803367 (genesis) y 3 (período) están en el <a id="vInfo2" class="link" target="_blank" rel="noopener">info de la cadena quicknet</a>.</p>
+      <h4>3. El sorteo completo</h4>
+      <p>Cloná el <a id="vRepo" target="_blank" rel="noopener">repositorio</a> y corré cualquiera de los dos (son independientes entre sí; los dos imprimen ganadores, suplentes y el código del sorteo, y cortan con error si algo no cierra):</p>
+      <pre>node verificar.js
+python verificar.py</pre>
+      <p>Definiciones exactas: <b>semilla</b> = <code>randomness</code> de la ronda (64 hex en minúscula), usada como texto. <b>puntaje</b> = SHA-256 (hex) de los bytes UTF-8 de <code>semilla + ":" + usuario</code>. Orden ascendente por puntaje (como texto hex); desempate por usuario. <b>código</b> = SHA-256 de <code>huella|cadena|ronda|semilla|ganador1,ganador2,…|suplente1,…</code>. También podés pegar una semilla a mano en la dirección de esta página: <code id="vUrlSemilla">?semilla=…</code></p>
+      <h4>4. Qué se verifica y qué no</h4>
+      <p>Esta página exige que varios espejos de drand devuelvan la misma semilla y que <code>randomness = SHA-256(firma)</code>; <b>no verifica la firma BLS</b> de la ronda contra la clave pública de la cadena (eso lo hace un cliente de drand). Que la lista existiera antes de la ronda lo prueban las fechas de GitHub Pages e Internet Archive y el anuncio en Instagram, no el historial de git (esas fechas las escribe quien commitea).</p>
+      <h4>5. El código</h4>
+      <p>El algoritmo completo está en <a id="vCore" target="_blank" rel="noopener">sorteo-core.js</a>.</p>
+    </div>
+  </details>
+
+  <footer id="pie"></footer>
+</div>
+
+<script src="sorteo-core.js"></script>
+<script src="sorteo-ui.js"></script>
+<script>
+"use strict";
+const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
+let st = null, resultado = null, posiciones = null, corriendo = false, fallo = false, buscar = () => {};
+
+async function init() {
+  st = await UI.cargar();
+  const repo = UI.renderCabecera(st);
+  UI.renderPadron(st); UI.renderTablero(st);
+  document.title = "Verificar · " + (st.cfg.titulo || "Sorteo");
+  $("titulo").textContent = (st.cfg.titulo || "Sorteo") + (st.cfg.premio ? " · " + st.cfg.premio : "");
+  buscar = UI.buscador(st, () => posiciones);
+  if (st.cfg.participantes) $("vPadron").href = st.cfg.participantes;
+  const f = UI.fmtFecha(st.fechaRonda, true) + " hs (Argentina)";
+  $("fechaRonda").textContent = f; $("fechaRondaTxt").textContent = f;
+  $("ronda").textContent = "#" + st.ronda;
+  $("vDrand1").href = Core.urlRonda(st.ronda, st.cadena, "https://api.drand.sh");
+  $("vDrand2").href = Core.urlRonda(st.ronda, st.cadena, "https://drand.cloudflare.com");
+  $("vInfo").href = $("vInfo2").href = "https://api.drand.sh/" + st.cadena.hash + "/info";
+  $("vHashEsperado").textContent = st.hashCfg || "—";
+  $("vUrlSemilla").textContent = location.origin + location.pathname + "?semilla=<randomness>";
+  if (repo) { $("vRepo").href = repo; $("vCore").href = repo + "/blob/main/sorteo-core.js"; }
+  if (st.codigoParam) $("codigoPub").value = st.codigoParam;
+  $("codigoPub").addEventListener("input", compararCodigo);
+  $("reintentar").addEventListener("click", () => { fallo = false; $("rowReintentar").classList.add("hidden"); ejecutar(); });
+  UI.renderAnclas(st);
+  UI.cargarEvidencia(st).then(() => buscar());
+  tick(); setInterval(tick, 500);
+}
+
+function tick() {
+  if (!st || corriendo || resultado || fallo) return;
+  if (st.bloqueos.length) { $("countdown").textContent = ""; $("estado").innerHTML = '<span class="err">No se puede rehacer el sorteo: revisá los avisos de arriba.</span>'; return; }
+  if (st.semillaManual) { $("countdown").textContent = "Reproducción con semilla manual"; ejecutar(); return; }
+  const txt = UI.textoCountdown(st);
+  if (!txt) { $("countdown").textContent = ""; ejecutar(); return; }
+  $("countdown").textContent = "Todavía no se sorteó. " + txt + " (según el reloj de tu dispositivo)";
+}
+
+function compararCodigo() {
+  const v = $("codigoPub").value.trim().toLowerCase(), out = $("codigoRes");
+  if (!v || !resultado) { out.textContent = ""; return; }
+  if (v === resultado.codigo) out.innerHTML = '<span class="ok">✓ Coincide: el sorteo publicado es exactamente el que acabás de rehacer</span>';
+  else if (resultado.codigo.startsWith(v) && v.length >= 8) out.innerHTML = '<span class="ok">✓ Coincide con el inicio del código calculado</span> <span class="muted">(pegá el código completo para la comparación exacta)</span>';
+  else out.innerHTML = '<span class="err">✗ No coincide con el código calculado acá</span> <span class="muted">(¿está bien copiado? Si sí, el resultado publicado no sale de esta lista y esta ronda)</span>';
+}
+
+async function ejecutar() {
+  if (corriendo || resultado) return;
+  corriendo = true;
+  try {
+    const info = await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; }, 30000);
+    $("semillaBox").classList.remove("hidden");
+    $("sSemilla").textContent = info.randomness;
+    $("sFuentes").innerHTML = UI.htmlFuentes(info);
+    $("estado").textContent = "Calculando el orden de " + UI.fmtN(st.usuarios.length) + " participantes…";
+    const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes,
+      (i, n) => { $("estado").textContent = "Calculando " + UI.fmtN(i) + " / " + UI.fmtN(n) + "…"; });
+    res.info = info;
+    res.codigo = await Core.codigoResultado({ hashLista: st.hashCalc, cadena: st.cadena.id, ronda: st.ronda, semilla: res.semilla, ganadores: res.ganadores, suplentes: res.suplentes });
+    resultado = res;
+    posiciones = new Map(res.orden.map((p, i) => [p.usuario, i]));
+    $("estado").textContent = "";
+    const item = (u, i) => '<li><span class="n">' + (i + 1) + "</span><span>@" + UI.esc(u) + "</span>" + (UI.linkComentario(st, u) ? ' <a class="link chica" href="' + UI.esc(UI.linkComentario(st, u)) + '" target="_blank" rel="noopener">ver comentario</a>' : "") + "</li>";
+    const pintar = () => {
+      $("listaGan").innerHTML = res.ganadores.map(item).join("");
+      $("listaSup").innerHTML = res.suplentes.map(item).join("");
+      const ev = st.evidencia;
+      $("evidenciaTxt").innerHTML = ev && ev.ok ? "Cada nombre linkea a su comentario en el reel (id y fecha del primer comentario de cada participante, publicados en <a class='link' href='" + UI.esc(st.cfg.evidencia) + "' target='_blank' rel='noopener'>evidencia.json</a>). Si un link no abre, el comentario fue borrado o la cuenta es privada."
+        : ev && ev.error ? '<span class="warn">No se pudo cargar la evidencia por usuario (' + UI.esc(ev.error) + ").</span>" : ev ? '<span class="err">La evidencia por usuario no coincide con su huella publicada.</span>' : "";
+    };
+    pintar();
+    if (!st.evidencia) UI.cargarEvidencia(st).then(pintar);
+    $("codigo").textContent = res.codigo;
+    $("cardResultado").classList.remove("hidden");
+    buscar(); compararCodigo();
+  } catch (e) {
+    fallo = true;
+    $("estado").innerHTML = '<span class="err">' + UI.esc(e.amigable || ("No se pudo rehacer el sorteo: " + e.message)) + "</span>";
+    $("rowReintentar").classList.remove("hidden");
+  } finally { corriendo = false; }
+}
+
+init().catch(e => UI.error("La página no pudo inicializar: " + e.message));
+</script>
+</body>
+</html>

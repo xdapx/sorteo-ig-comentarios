@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorteo</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="fuentes/fuentes.css">
+<link rel="stylesheet" href="sorteo.css">
+<link rel="stylesheet" href="tema-carrera.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="marca">
+    <div class="logo"><span class="pin">V</span>Vesl <em>Sorteos</em></div>
+    <div class="sello">&#10003; Verificable<span> con azar público</span></div>
+  </div>
+
+  <section class="hero">
+    <a id="reel" class="poster" target="_blank" rel="noopener" title="Ver el reel en Instagram">
+      <img id="posterImg" alt="Portada del reel" hidden>
+      <span class="tag">Ver el reel &#9654;</span>
+    </a>
+    <div>
+      <div class="org"><span id="org"></span> · Sorteo oficial</div>
+      <h1 id="titulo">Sorteo</h1>
+      <p class="premio" id="premio"></p>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <div id="bannerPrueba" class="banner hidden"></div>
+  <div id="bannerManual" class="banner hidden"></div>
+  <div id="bannerAviso" class="banner hidden"></div>
+  <div id="bannerError" class="banner err hidden"></div>
+
+  <section class="card largada" id="cardSorteo">
+    <div class="cuadros" aria-hidden="true"></div>
+    <div class="semaforo" id="semaforo" aria-hidden="true"></div>
+    <div class="reloj" id="reloj" aria-live="off"></div>
+    <div class="cuando-txt">Sorteo: <b id="fechaRonda">…</b> · ronda <b id="ronda">#…</b> de drand · <span id="cantidades"></span></div>
+    <button id="go" class="btn-go" disabled>Largar el sorteo</button>
+    <p id="estado" class="estado" aria-live="polite"></p>
+    <p class="nota" id="nota">El número que decide el sorteo lo publica <b>drand</b>, un servicio público de azar, en el segundo anunciado. Antes de ese momento no lo conoce nadie, tampoco el organizador. Con la misma lista y la misma ronda el resultado es siempre el mismo: no existe "sortear de nuevo".</p>
+  </section>
+
+  <div id="zonaResultado" class="hidden">
+    <div class="section-lbl" style="margin-top:30px">Ganadores</div>
+    <div id="ganGrid" class="grilla"></div>
+    <div id="supLbl" class="section-lbl hidden" style="margin-top:22px">Suplentes, en orden</div>
+    <div id="supGrid" class="boxes"></div>
+  </div>
+
+  <section class="card hidden" id="cardResultado">
+    <div class="codigo">
+      <div class="lbl">Código del sorteo</div>
+      <code class="val" id="codigo"></code>
+      <div class="sub">Se publica junto con los ganadores. Cualquiera que rehaga el sorteo en <a class="link" id="linkVerif" href="verificar.html">la página de verificación</a> obtiene exactamente este código.</div>
+    </div>
+    <div class="row-k" style="margin-top:14px"><span>Ronda de drand</span><a id="sRonda" class="link" target="_blank" rel="noopener"></a></div>
+    <div class="row-k"><span>Semilla (randomness de la ronda)</span><code id="sSemilla"></code></div>
+    <div class="row-k"><span>Confirmación</span><span id="sFuentes"></span></div>
+    <div class="row-k"><span>Huella de la lista (SHA-256)</span><code id="sHash"></code></div>
+    <div class="row-k"><span>Calculado</span><span id="sCuando"></span></div>
+    <div class="acciones">
+      <button id="copy" class="btn-ghost fuerte" type="button">Copiar resultado</button>
+      <button id="acta" class="btn-ghost" type="button">Descargar acta</button>
+      <a id="verif2" class="btn-ghost" href="verificar.html" style="text-decoration:none">Verificar</a>
+    </div>
+    <pre id="textoResultado" class="hidden"></pre>
+  </section>
+
+  <section class="card" id="cardPadron">
+    <h2><span class="n">&#10003;</span> Quiénes participan</h2>
+    <div class="tablero hidden" id="tablero"></div>
+    <div class="reparto hidden" id="reparto"></div>
+    <p class="muted criterio" id="criterio"></p>
+    <p class="muted criterio" id="requisitos"></p>
+    <div class="buscar">
+      <input id="buscar" placeholder="¿Estás en la lista? Escribí tu usuario" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div id="buscarRes" class="buscar-res"></div>
+    </div>
+    <div class="chk" id="chkHash">Verificando la lista…</div>
+  </section>
+
+  <section class="card">
+    <h2>Cómo se elige</h2>
+    <ol class="pasos">
+      <li><b>La lista se publica antes.</b> Todos los que comentaron, una vez cada uno, con su huella SHA-256 anunciada en Instagram.</li>
+      <li><b>La ronda se fija antes.</b> El número al azar sale de drand en el segundo exacto del sorteo. Hasta ese momento no existe.</li>
+      <li><b>Un cálculo público.</b> Cada usuario recibe un puntaje SHA-256(semilla:usuario). Los 5 más bajos ganan y los siguientes son suplentes.</li>
+      <li><b>Cualquiera lo repite.</b> La página de verificación rehace todo en tu navegador y tiene que dar el mismo código.</li>
+    </ol>
+  </section>
+
+  <footer id="pie"></footer>
+</div>
+<canvas id="confeti" aria-hidden="true"></canvas>
+
+<script src="sorteo-core.js"></script>
+<script src="sorteo-ui.js"></script>
+<script>
+"use strict";
+const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
+const QUIETO = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let st = null, resultado = null, posiciones = null, corriendo = false, buscar = () => {};
+
+async function init() {
+  st = await UI.cargar();
+  UI.renderCabecera(st);
+  UI.renderPadron(st); UI.renderTablero(st);
+  document.title = (st.cfg.titulo || "Sorteo") + " · " + (st.cfg.organizador || "Vesl Sorteos");
+  if (st.cfg.fondo) { $("posterImg").src = st.cfg.fondo; $("posterImg").hidden = false; }
+  $("chips").innerHTML = [
+    [UI.fmtN(st.usuarios.length), "participantes"],
+    [UI.fmtN(st.cfg.ganadores || 0), "ganadores"],
+    [UI.fmtN(st.cfg.suplentes || 0), "suplentes"]
+  ].map(([n, t]) => '<span class="chip"><b>' + n + "</b>" + t + "</span>").join("");
+  buscar = UI.buscador(st, () => posiciones);
+  $("fechaRonda").textContent = UI.fmtFecha(st.fechaRonda, true) + " hs";
+  $("ronda").textContent = "#" + st.ronda;
+  $("sRonda").href = Core.urlRonda(st.ronda, st.cadena, "https://api.drand.sh");
+  $("sRonda").textContent = "#" + st.ronda + " (" + st.cadena.id + ")";
+  armarSemaforo();
+  $("go").addEventListener("click", ejecutar);
+  $("copy").addEventListener("click", () => UI.copiar($("textoResultado").textContent, $("copy"), $("textoResultado")));
+  $("acta").addEventListener("click", bajarActa);
+  UI.cargarEvidencia(st).then(() => buscar());
+  tick(); setInterval(tick, 250);
+}
+
+/* ---------- Reloj ---------- */
+function pintarReloj(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), seg = s % 60;
+  const pad = n => String(n).padStart(2, "0");
+  const partes = (d ? [[d, d === 1 ? "día" : "días"]] : []).concat([[pad(h), "horas"], [pad(m), "min"], [pad(seg), "seg"]]);
+  const html = partes.map(([v, t]) => '<div class="seg"><b>' + v + "</b><span>" + t + "</span></div>").join("");
+  if ($("reloj").innerHTML !== html) $("reloj").innerHTML = html;
+  $("reloj").classList.toggle("listo", ms <= 0);
+}
+function tick() {
+  if (!st || corriendo || resultado) return;
+  if (st.bloqueos.length) { pintarReloj(0); $("go").disabled = true; $("estado").innerHTML = '<span class="err">No se puede sortear: revisá los avisos de arriba.</span>'; return; }
+  if (st.semillaManual) { pintarReloj(0); $("go").disabled = false; $("estado").textContent = "Reproducción con semilla manual"; return; }
+  const faltan = st.fechaRonda.getTime() - Date.now();
+  pintarReloj(faltan);
+  $("go").disabled = faltan > 0;
+  $("estado").textContent = faltan > 0 ? "El botón se habilita cuando sale la ronda (según el reloj de este dispositivo)." : "La ronda ya salió. Listo para largar.";
+}
+
+/* ---------- Semáforo de largada ---------- */
+function armarSemaforo() {
+  $("semaforo").innerHTML = Array.from({ length: 5 }, () => '<div class="col"><div class="luz"></div><div class="luz"></div></div>').join("");
+}
+// Enciende las 5 columnas de a una. Es solo escena: el resultado lo calcula drand en paralelo
+// y las luces se apagan recién cuando está listo, nunca antes.
+async function encenderLuces() {
+  const cols = [...$("semaforo").children];
+  cols.forEach(c => c.classList.remove("on")); $("semaforo").classList.remove("verde");
+  for (const c of cols) { c.classList.add("on"); await UI.sleep(QUIETO ? 60 : 560); }
+}
+async function largar() {
+  [...$("semaforo").children].forEach(c => c.classList.remove("on"));
+  await UI.sleep(QUIETO ? 0 : 260);
+  $("semaforo").classList.add("verde");
+}
+
+async function calcular() {
+  const info = await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; });
+  $("estado").textContent = "Ordenando a los " + UI.fmtN(st.usuarios.length) + " participantes…";
+  const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes);
+  res.info = info; res.cuando = new Date();
+  res.codigo = await Core.codigoResultado({ hashLista: st.hashCalc, cadena: st.cadena.id, ronda: st.ronda, semilla: res.semilla, ganadores: res.ganadores, suplentes: res.suplentes });
+  return res;
+}
+
+async function ejecutar() {
+  if (corriendo || resultado) return;
+  corriendo = true; $("go").disabled = true;
+  $("estado").textContent = "Consultando la ronda #" + st.ronda + " en drand…";
+  try {
+    const [res] = await Promise.all([calcular(), encenderLuces()]);
+    await UI.sleep(QUIETO ? 0 : 700);
+    await largar();
+    resultado = res;
+    posiciones = new Map(res.orden.map((p, i) => [p.usuario, i]));
+    $("estado").textContent = "";
+    mostrar(res);
+  } catch (e) {
+    armarSemaforo();
+    $("estado").innerHTML = '<span class="err">' + UI.esc(e.amigable || e.message) + "</span>";
+    $("go").disabled = false;
+  } finally { corriendo = false; }
+}
+
+/* ---------- Revelado ---------- */
+// Nombres de relleno para el rodillo: deterministas, salen del padrón (sin Math.random).
+function relleno(i, cuantos) {
+  const n = st.usuarios.length, out = [];
+  for (let k = 0; k < cuantos; k++) out.push(st.usuarios[(k * 7919 + i * 131 + 17) % n]);
+  return out;
+}
+function detalle(u) {
+  const ev = st.evidencia && st.evidencia.comentarios && st.evidencia.comentarios[u];
+  const url = UI.linkComentario(st, u);
+  return (ev && ev.ts ? "comentó el " + UI.esc(UI.fmtFecha(ev.ts)) + " hs" : "") +
+    (url ? (ev && ev.ts ? " · " : "") + '<a class="link" href="' + UI.esc(url) + '" target="_blank" rel="noopener">ver comentario</a>' : "");
+}
+function girar(slot, nombres, demora) {
+  return new Promise(resolve => {
+    const ul = slot.querySelector("ul"), alto = 30, fin = -(nombres.length - 1) * alto;
+    const frenar = () => { slot.classList.add("won"); slot.querySelector(".det").innerHTML = detalle(nombres[nombres.length - 1]); resolve(); };
+    if (QUIETO) { ul.style.transform = "translateY(" + fin + "px)"; return frenar(); }
+    setTimeout(() => {
+      ul.style.transition = "transform 2.1s cubic-bezier(.12,.82,.22,1)";
+      ul.style.transform = "translateY(" + fin + "px)";
+      ul.addEventListener("transitionend", frenar, { once: true });
+    }, demora);
+  });
+}
+async function mostrar(res) {
+  $("go").classList.add("hidden");
+  $("zonaResultado").classList.remove("hidden");
+  const grid = $("ganGrid"); grid.innerHTML = "";
+  const giros = res.ganadores.map((g, i) => {
+    const nombres = relleno(i, 26).concat([g]);
+    const slot = document.createElement("div");
+    slot.className = "slot"; slot.style.animationDelay = (i * 90) + "ms";
+    slot.innerHTML = '<div class="pos"><small>P</small>' + (i + 1) + '</div><div class="cuerpo"><div class="rodillo"><ul>' +
+      nombres.map(u => "<li>@" + UI.esc(u) + "</li>").join("") + '</ul></div><div class="det"></div></div>';
+    grid.appendChild(slot);
+    return girar(slot, nombres, 350 + i * 420);
+  });
+  grid.scrollIntoView({ behavior: QUIETO ? "auto" : "smooth", block: "center" });
+  await Promise.all(giros);
+
+  if (res.suplentes.length) {
+    $("supLbl").classList.remove("hidden");
+    $("supGrid").innerHTML = res.suplentes.map((u, i) =>
+      '<div class="box" style="animation-delay:' + (i * 70) + 'ms"><span class="n">' + (i + 1) + '</span><span class="u">@' + UI.esc(u) + "</span>" +
+      (UI.linkComentario(st, u) ? '<a class="link" href="' + UI.esc(UI.linkComentario(st, u)) + '" target="_blank" rel="noopener">ver</a>' : "") + "</div>").join("");
+  }
+  $("codigo").textContent = res.codigo;
+  $("sSemilla").textContent = res.semilla;
+  $("sHash").textContent = st.hashCalc;
+  $("sCuando").textContent = UI.fmtFecha(res.cuando, true) + " hs, en este navegador. El resultado es el mismo para cualquiera que lo rehaga.";
+  $("sFuentes").innerHTML = UI.htmlFuentes(res.info);
+  $("linkVerif").href = $("verif2").href = "verificar.html?codigo=" + res.codigo;
+  $("textoResultado").textContent = textoResultado(res);
+  $("cardResultado").classList.remove("hidden");
+  $("nota").textContent = "Resultado final. Cualquiera puede rehacerlo en la página de verificación y obtiene el mismo código.";
+  buscar();
+  confeti(res.codigo);
+  // Si la evidencia llegó tarde, completa los links.
+  if (!st.evidencia) UI.cargarEvidencia(st).then(() => { $("textoResultado").textContent = textoResultado(res); });
+}
+
+function textoResultado(res) {
+  const base = location.origin + location.pathname.replace(/[^/]*$/, "");
+  const linea = (u, i) => (i + 1) + ". @" + u + (UI.linkComentario(st, u) ? "  " + UI.linkComentario(st, u) : "");
+  return (st.cfg.titulo || "Sorteo") + " · " + (st.cfg.organizador || "") +
+    "\n\nGANADORES:\n" + res.ganadores.map(linea).join("\n") +
+    "\n\nSUPLENTES (en orden):\n" + res.suplentes.map(linea).join("\n") +
+    (st.cfg.reemplazos ? "\n\n" + st.cfg.reemplazos : "") +
+    "\n\nCÓDIGO DEL SORTEO: " + res.codigo +
+    "\nParticipantes: " + st.usuarios.length + "\nRonda drand " + st.cadena.id + " #" + st.ronda + ": " + Core.urlRonda(st.ronda, st.cadena) +
+    "\nSemilla: " + res.semilla + "\nHuella de la lista (SHA-256): " + st.hashCalc + "\nVerificalo: " + base + "verificar.html?codigo=" + res.codigo;
+}
+
+// Acta en CSV: BOM y punto y coma para que Excel en castellano la abra de un doble clic.
+function bajarActa() {
+  const res = resultado; if (!res) return;
+  const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
+  const filas = [
+    "# Sorteo;" + q(st.cfg.titulo), "# Reel;" + st.cfg.reel, "# Sorteado;" + UI.fmtFecha(res.cuando, true),
+    "# Participantes;" + st.usuarios.length, "# Huella de la lista (SHA-256);" + st.hashCalc,
+    "# Ronda drand " + st.cadena.id + ";" + st.ronda, "# Semilla;" + res.semilla, "# Código del sorteo;" + res.codigo,
+    "# Reemplazos;" + q(st.cfg.reemplazos || ""), "",
+    ["puesto", "tipo", "usuario", "sigue a las 2 cuentas (control manual)", "link al comentario"].map(q).join(";")
+  ];
+  res.ganadores.forEach((u, i) => filas.push([i + 1, "ganador", "@" + u, "", UI.linkComentario(st, u)].map(q).join(";")));
+  res.suplentes.forEach((u, i) => filas.push([i + 1, "suplente", "@" + u, "", UI.linkComentario(st, u)].map(q).join(";")));
+  const blob = new Blob(["﻿" + filas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "acta_sorteo_" + res.codigo.slice(0, 8) + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- Bandera a cuadros ---------- */
+// Pseudoaleatorio con semilla = el código del sorteo: el mismo resultado da el mismo festejo.
+function confeti(codigo) {
+  if (QUIETO) return;
+  const cv = $("confeti"), ctx = cv.getContext("2d"), dpr = Math.min(2, devicePixelRatio || 1);
+  const W = cv.width = innerWidth * dpr, H = cv.height = innerHeight * dpr;
+  let a = parseInt(codigo.slice(0, 8), 16) >>> 0;
+  const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const acento = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ffc21a";
+  const acento2 = getComputedStyle(document.documentElement).getPropertyValue("--accent2").trim() || "#ff6b00";
+  const colores = ["#f5f5f7", "#111114", acento, acento2, "#f5f5f7", "#111114"];
+  const ps = Array.from({ length: 170 }, (_, i) => ({
+    x: (i % 2 ? rnd() * .35 : .65 + rnd() * .35) * W, y: H * (.55 + rnd() * .2),
+    // Dos cañones desde los costados, cruzando hacia el centro.
+    vx: (i % 2 ? 1 : -1) * (2 + rnd() * 6) * dpr, vy: -(10 + rnd() * 9) * dpr,
+    s: (5 + rnd() * 7) * dpr, r: rnd() * 6.28, vr: (rnd() - .5) * .35, c: colores[i % colores.length], cuadro: i % 3 === 0
+  }));
+  const t0 = performance.now(), dur = 4200;
+  (function frame(t) {
+    const k = (t - t0) / dur; ctx.clearRect(0, 0, W, H);
+    if (k >= 1) return;
+    ctx.globalAlpha = k > .7 ? (1 - k) / .3 : 1;
+    for (const p of ps) {
+      p.vy += .32 * dpr; p.vx *= .992; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.scale(1, Math.cos(p.r * 1.7));
+      if (p.cuadro) { const m = p.s / 2; ctx.fillStyle = "#f5f5f7"; ctx.fillRect(-p.s, -p.s, p.s * 2, p.s * 2); ctx.fillStyle = "#111114"; ctx.fillRect(-p.s, -p.s, m * 2, m * 2); ctx.fillRect(0, 0, m * 2, m * 2); }
+      else { ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 3, p.s, p.s * .66); }
+      ctx.restore();
+    }
+    requestAnimationFrame(frame);
+  })(t0);
+}
+
+init().catch(e => UI.error("La página no pudo inicializar: " + e.message));
+</script>
+</body>
+</html>
