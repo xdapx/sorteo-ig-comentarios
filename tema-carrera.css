@@ -171,3 +171,10 @@ details.card summary{font-family:var(--display);font-size:19px;text-transform:up
   .slot,.box{animation:none;opacity:1}
   .poster{transform:none;transition:none}
 }
+
+/* ---- Modo ensayo (?prueba): que ningún resultado de práctica se pueda confundir con el real ---- */
+.modo-prueba .marca .sello{color:var(--warn);border-color:rgba(255,179,64,.45);background:rgba(255,179,64,.1)}
+.modo-prueba #zonaResultado::before,.modo-prueba #cardResultado::before{content:"ENSAYO · ESTE RESULTADO NO VALE";display:block;text-align:center;
+  font-family:var(--display);font-weight:800;letter-spacing:2px;font-size:15px;color:#1b1200;background:var(--warn);border-radius:10px;padding:8px;margin:26px 0 0}
+.modo-prueba #cardResultado::before{margin:0 0 14px}
+.modo-prueba .slot.won{border-style:dashed}

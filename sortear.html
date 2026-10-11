@@ -6,8 +6,8 @@
 <title>Sorteo</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="fuentes/fuentes.css">
-<link rel="stylesheet" href="sorteo.css?v=2">
-<link rel="stylesheet" href="tema-carrera.css?v=2">
+<link rel="stylesheet" href="sorteo.css?v=3">
+<link rel="stylesheet" href="tema-carrera.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -96,12 +96,16 @@
 </div>
 <canvas id="confeti" aria-hidden="true"></canvas>
 
-<script src="sorteo-core.js?v=2"></script>
-<script src="sorteo-ui.js?v=2"></script>
+<script src="sorteo-core.js?v=3"></script>
+<script src="sorteo-ui.js?v=3"></script>
 <script>
 "use strict";
 const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
 const QUIETO = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Modo ensayo (?prueba): cada toque sortea de nuevo con un número al azar del navegador, para practicar
+// el vivo. Nunca es el resultado real: lo dice arriba, en cada resultado, en el texto copiado y en el acta.
+// El sorteo oficial es esta misma página SIN ?prueba, y ahí el resultado es uno solo.
+const PRUEBA = new URLSearchParams(location.search).has("prueba");
 let st = null, resultado = null, posiciones = null, corriendo = false, buscar = () => {};
 
 async function init() {
@@ -126,6 +130,11 @@ async function init() {
   $("copy").addEventListener("click", () => UI.copiar($("textoResultado").textContent, $("copy"), $("textoResultado")));
   $("acta").addEventListener("click", bajarActa);
   UI.cargarEvidencia(st).then(() => buscar());
+  if (PRUEBA) {
+    document.body.classList.add("modo-prueba");
+    UI.banner("bannerManual", "<b>MODO ENSAYO.</b> Cada toque sortea de nuevo con un número inventado: estos ganadores <b>no valen</b> y no se publican. El sorteo real es esta página sin <code>?prueba</code> en la dirección, y ahí se toca una sola vez.", true);
+    $("go").textContent = "Ensayar el sorteo";
+  }
   tick(); setInterval(tick, 250);
 }
 
@@ -133,6 +142,7 @@ async function init() {
 // Sin cuenta regresiva a propósito: el link se manda cuando la ronda ya salió. Si alguien entra
 // antes, ve desde qué hora se habilita y nada más.
 function tick() {
+  if (PRUEBA) { if (!corriendo) { $("go").disabled = false; } return; }
   if (!st || corriendo || resultado) return;
   if (st.bloqueos.length) { $("go").disabled = true; $("estado").innerHTML = '<span class="err">No se puede sortear: revisá los avisos de arriba.</span>'; return; }
   if (st.semillaManual) { $("go").disabled = false; $("estado").textContent = "Reproducción con semilla manual"; return; }
@@ -159,7 +169,7 @@ async function largar() {
 }
 
 async function calcular() {
-  const info = await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; });
+  const info = PRUEBA ? semillaEnsayo() : await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; });
   $("estado").textContent = "Ordenando " + UI.fmtN(st.usuarios.length) + " boletos…";
   const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes);
   res.info = info; res.cuando = new Date();
@@ -167,7 +177,18 @@ async function calcular() {
   return res;
 }
 
+function semillaEnsayo() {
+  const b = crypto.getRandomValues(new Uint8Array(32));
+  return { randomness: Array.from(b, x => x.toString(16).padStart(2, "0")).join(""), manual: true, fuentes: [], fallas: [], ensayo: true };
+}
+function limpiarEnsayo() {
+  resultado = null; posiciones = null;
+  $("zonaResultado").classList.add("hidden"); $("cardResultado").classList.add("hidden");
+  $("ganGrid").innerHTML = ""; $("supGrid").innerHTML = ""; $("supLbl").classList.add("hidden");
+  armarSemaforo();
+}
 async function ejecutar() {
+  if (PRUEBA && !corriendo) limpiarEnsayo();
   if (corriendo || resultado) return;
   corriendo = true; $("go").disabled = true;
   $("estado").textContent = "Consultando la ronda #" + st.ronda + " en drand…";
@@ -215,7 +236,7 @@ function girar(slot, nombres, demora) {
 }
 async function mostrar(res) {
   boletoDe = new Map(res.orden.map(p => [p.usuario, p.boleto]));
-  $("go").classList.add("hidden");
+  if (!PRUEBA) $("go").classList.add("hidden");
   $("zonaResultado").classList.remove("hidden");
   const grid = $("ganGrid"); grid.innerHTML = "";
   const giros = res.ganadores.map((g, i) => {
@@ -244,7 +265,7 @@ async function mostrar(res) {
   $("linkVerif").href = $("verif2").href = "verificar.html?codigo=" + res.codigo;
   $("textoResultado").textContent = textoResultado(res);
   $("cardResultado").classList.remove("hidden");
-  $("nota").textContent = "Resultado final. Cualquiera puede rehacerlo en la página de verificación y obtiene el mismo código.";
+  $("nota").textContent = PRUEBA ? "Ensayo: este resultado no vale. Tocá de nuevo para practicar otra vez." : "Resultado final. Cualquiera puede rehacerlo en la página de verificación y obtiene el mismo código.";
   buscar();
   confeti(res.codigo);
   // Si la evidencia llegó tarde, completa los links.
@@ -254,7 +275,7 @@ async function mostrar(res) {
 function textoResultado(res) {
   const base = location.origin + location.pathname.replace(/[^/]*$/, "");
   const linea = (u, i) => (i + 1) + ". @" + u + (UI.linkComentario(st, u, boletoDe.get(u)) ? "  " + UI.linkComentario(st, u, boletoDe.get(u)) : "");
-  return (st.cfg.titulo || "Sorteo") + " · " + (st.cfg.organizador || "") +
+  return (PRUEBA ? "*** ENSAYO — ESTE RESULTADO NO VALE ***\n\n" : "") + (st.cfg.titulo || "Sorteo") + " · " + (st.cfg.organizador || "") +
     "\n\nGANADORES:\n" + res.ganadores.map(linea).join("\n") +
     "\n\nSUPLENTES (en orden):\n" + res.suplentes.map(linea).join("\n") +
     (st.cfg.reemplazos ? "\n\n" + st.cfg.reemplazos : "") +
@@ -268,7 +289,7 @@ function bajarActa() {
   const res = resultado; if (!res) return;
   const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
   const filas = [
-    "# Sorteo;" + q(st.cfg.titulo), "# Reel;" + st.cfg.reel, "# Sorteado;" + UI.fmtFecha(res.cuando, true),
+    ...(PRUEBA ? ["# ENSAYO;ESTE RESULTADO NO VALE"] : []), "# Sorteo;" + q(st.cfg.titulo), "# Reel;" + st.cfg.reel, "# Sorteado;" + UI.fmtFecha(res.cuando, true),
     "# Participantes;" + st.personas.length + " personas / " + st.usuarios.length + " boletos", "# Huella de la lista (SHA-256);" + st.hashCalc,
     "# Ronda drand " + st.cadena.id + ";" + st.ronda, "# Semilla;" + res.semilla, "# Código del sorteo;" + res.codigo,
     "# Reemplazos;" + q(st.cfg.reemplazos || ""), "",
@@ -278,7 +299,7 @@ function bajarActa() {
   res.suplentes.forEach((u, i) => filas.push([i + 1, "suplente", "@" + u, "", UI.linkComentario(st, u, boletoDe.get(u))].map(q).join(";")));
   const blob = new Blob(["﻿" + filas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = "acta_sorteo_" + res.codigo.slice(0, 8) + ".csv";
+  a.download = (PRUEBA ? "ENSAYO_" : "") + "acta_sorteo_" + res.codigo.slice(0, 8) + ".csv";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
