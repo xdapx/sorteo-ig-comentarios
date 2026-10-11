@@ -120,8 +120,8 @@ python verificar.py</pre>
   <footer id="pie"></footer>
 </div>
 
-<script src="sorteo-core.js?v=3"></script>
-<script src="sorteo-ui.js?v=3"></script>
+<script src="sorteo-core.js?v=4"></script>
+<script src="sorteo-ui.js?v=4"></script>
 <script>
 "use strict";
 const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
@@ -154,6 +154,8 @@ async function init() {
 
 function tick() {
   if (!st || corriendo || resultado || fallo) return;
+  // Sorteo en vivo sin ronda en la dirección: no hay nada que rehacer todavía (la ronda la fija el toque).
+  if (st.rondaPendiente) { $("countdown").textContent = ""; $("estado").innerHTML = 'Este sorteo se hace <b>en vivo</b>: el número al azar es el de drand del segundo en que se toca el botón. Para rehacerlo, abrí el link de verificación que publicó el organizador (termina en <code>?ronda=…</code>).'; return; }
   if (st.bloqueos.length) { $("countdown").textContent = ""; $("estado").innerHTML = '<span class="err">No se puede rehacer el sorteo: revisá los avisos de arriba.</span>'; return; }
   if (st.semillaManual) { $("countdown").textContent = "Reproducción con semilla manual"; ejecutar(); return; }
   const txt = UI.textoCountdown(st);

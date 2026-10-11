@@ -19,7 +19,7 @@
     "seguir a @damiancivale",
     "seguir a @torneoskartzn"
   ],
-  "reemplazos": "Después del sorteo se controla a mano que cada ganador siga a las dos cuentas. Si alguno no cumple, pasa al siguiente suplente en orden y se publica el motivo.",
+  "reemplazos": "Se sortea en vivo: vale el resultado del toque hecho en el vivo, cuya ronda de drand tiene la hora del vivo. Después se controla a mano que cada ganador siga a las dos cuentas; si alguno no cumple, pasa al siguiente suplente en orden y se publica el motivo.",
   "anuncio": "",
   "archivo": {
     "participantes": "",
@@ -36,5 +36,6 @@
   "likesSha256": "",
   "fechaSorteo": "2026-10-11T13:24:00-03:00",
   "ronda": 32977492,
-  "prueba": false
+  "prueba": false,
+  "modo": "vivo"
 }

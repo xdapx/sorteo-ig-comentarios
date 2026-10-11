@@ -74,6 +74,13 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
   let ronda;
   try { ronda = Core.rondaParaFecha(cfg.fechaSorteo, cadena); } catch (e) { salir("fechaSorteo: " + e.message); }
   if (Number(cfg.ronda) !== ronda) salir("sorteo.json dice ronda #" + cfg.ronda + " pero la fecha anunciada (" + cfg.fechaSorteo + ") corresponde a la #" + ronda);
+  // Modo vivo: la ronda la fija el toque; sorteo.json trae la mínima. Se pasa con --ronda.
+  if (cfg.modo === "vivo") {
+    const r = Number(o.ronda);
+    if (!Number.isInteger(r) || r <= 0) salir("sorteo en vivo: pasá --ronda <número> (está en el link de verificación publicado).");
+    if (r < ronda) salir("la ronda #" + r + " es anterior a la mínima #" + ronda + ": salió antes de cerrar la lista.");
+    ronda = r;
+  }
   const fechaRonda = Core.fechaDeRonda(ronda, cadena);
   console.log("Ronda drand:        #" + ronda + "  = " + fmt(fechaRonda) + " hs Argentina (" + fechaRonda.toISOString() + ")");
   console.log("                    " + Core.urlRonda(ronda, cadena));

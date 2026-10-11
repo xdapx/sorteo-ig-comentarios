@@ -57,6 +57,14 @@ def main():
     ronda = ronda_para_fecha(cfg["fechaSorteo"])
     if int(cfg["ronda"]) != ronda:
         sys.exit(f"ERROR: sorteo.json dice ronda #{cfg['ronda']} pero la fecha anunciada corresponde a la #{ronda}")
+    # Modo vivo: la ronda la fija el toque; sorteo.json trae la mínima. Se pasa con --ronda.
+    if cfg.get("modo") == "vivo":
+        if "--ronda" not in sys.argv:
+            sys.exit("ERROR: sorteo en vivo: pasá --ronda <número> (está en el link de verificación publicado).")
+        r = int(sys.argv[sys.argv.index("--ronda") + 1])
+        if r < ronda:
+            sys.exit(f"ERROR: la ronda #{r} es anterior a la mínima #{ronda}: salió antes de cerrar la lista.")
+        ronda = r
     fecha_ronda = datetime.fromtimestamp(GENESIS + (ronda - 1) * PERIODO, tz=timezone.utc)
     print(f"Ronda drand:       #{ronda}  = {fecha_ronda.isoformat()}")
 

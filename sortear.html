@@ -59,7 +59,7 @@
       <code class="val" id="codigo"></code>
       <div class="sub">Se publica junto con los ganadores. Cualquiera que rehaga el sorteo en <a class="link" id="linkVerif" href="verificar.html">la página de verificación</a> obtiene exactamente este código.</div>
     </div>
-    <div class="row-k" style="margin-top:14px"><span>Número al azar: ronda de drand fijada antes del vivo</span><a id="sRonda" class="link" target="_blank" rel="noopener"></a></div>
+    <div class="row-k" style="margin-top:14px"><span>Número al azar: ronda de drand</span><a id="sRonda" class="link" target="_blank" rel="noopener"></a></div>
     <div class="row-k"><span>Semilla (randomness de la ronda)</span><code id="sSemilla"></code></div>
     <div class="row-k"><span>Confirmación</span><span id="sFuentes"></span></div>
     <div class="row-k"><span>Huella de la lista (SHA-256)</span><code id="sHash"></code></div>
@@ -99,8 +99,8 @@
 </div>
 <canvas id="confeti" aria-hidden="true"></canvas>
 
-<script src="sorteo-core.js?v=3"></script>
-<script src="sorteo-ui.js?v=3"></script>
+<script src="sorteo-core.js?v=4"></script>
+<script src="sorteo-ui.js?v=4"></script>
 <script>
 "use strict";
 const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
@@ -127,7 +127,7 @@ async function init() {
   $("fechaRonda").textContent = UI.fmtFecha(st.fechaRonda, true) + " hs";
   $("ronda").textContent = "#" + st.ronda;
   $("sRonda").href = Core.urlRonda(st.ronda, st.cadena, "https://api.drand.sh");
-  $("sRonda").textContent = "#" + st.ronda + " (" + st.cadena.id + "), publicada el " + UI.fmtFecha(st.fechaRonda, true) + " hs, después de que la lista quedó cerrada";
+  $("sRonda").textContent = "#" + st.ronda + " (" + st.cadena.id + "), publicada el " + UI.fmtFecha(st.fechaRonda, true) + " hs" + (st.vivo ? "" : ", después de que la lista quedó cerrada");
   armarSemaforo();
   $("go").addEventListener("click", ejecutar);
   $("copy").addEventListener("click", () => UI.copiar($("textoResultado").textContent, $("copy"), $("textoResultado")));
@@ -145,7 +145,7 @@ async function init() {
 // Sin cuenta regresiva a propósito: el link se manda cuando la ronda ya salió. Si alguien entra
 // antes, ve desde qué hora se habilita y nada más.
 function tick() {
-  if (PRUEBA) { if (!corriendo) { $("go").disabled = false; } return; }
+  if (PRUEBA || (st && st.vivo && !st.bloqueos.length)) { if (!corriendo) { $("go").disabled = false; } return; }
   if (!st || corriendo || resultado) return;
   if (st.bloqueos.length) { $("go").disabled = true; $("estado").innerHTML = '<span class="err">No se puede sortear: revisá los avisos de arriba.</span>'; return; }
   if (st.semillaManual) { $("go").disabled = false; $("estado").textContent = "Reproducción con semilla manual"; return; }
@@ -171,7 +171,15 @@ async function largar() {
   $("semaforo").classList.add("verde");
 }
 
+// En vivo: cada toque usa la PRÓXIMA ronda de drand (sale en ≤3 s). Nadie la conoce cuando se toca el
+// botón y su número, que fija la hora, queda en el código del sorteo: vale el toque hecho en el vivo.
+function fijarRondaDelToque() {
+  if (!st.vivo || PRUEBA || st.semillaManual) return;
+  const r = Math.max(st.rondaBase + 1, Core.rondaParaFecha(Math.floor(Date.now() / 1000), st.cadena) + 1);
+  st.ronda = r; st.fechaRonda = Core.fechaDeRonda(r, st.cadena);
+}
 async function calcular() {
+  fijarRondaDelToque();
   const info = PRUEBA ? semillaEnsayo() : await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; });
   $("estado").textContent = "Ordenando " + UI.fmtN(st.usuarios.length) + " boletos…";
   const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes);
@@ -191,10 +199,10 @@ function limpiarEnsayo() {
   armarSemaforo();
 }
 async function ejecutar() {
-  if (PRUEBA && !corriendo) limpiarEnsayo();
+  if ((PRUEBA || st.vivo) && !corriendo) limpiarEnsayo();
   if (corriendo || resultado) return;
   corriendo = true; $("go").disabled = true;
-  $("estado").textContent = "Consultando la ronda #" + st.ronda + " en drand…";
+  $("estado").textContent = st.vivo && !PRUEBA ? "Esperando el próximo número de drand…" : "Consultando la ronda #" + st.ronda + " en drand…";
   try {
     const [res] = await Promise.all([calcular(), encenderLuces()]);
     await UI.sleep(QUIETO ? 0 : 700);
@@ -239,8 +247,10 @@ function girar(slot, nombres, demora) {
 }
 async function mostrar(res) {
   boletoDe = new Map(res.orden.map(p => [p.usuario, p.boleto]));
-  $("envivo").innerHTML = (PRUEBA ? "Ensayo" : '<i class="punto"></i>Sorteado en vivo') + " · " + UI.esc(UI.fmtFecha(res.cuando, true)) + " hs";
-  if (!PRUEBA) $("go").classList.add("hidden");
+  $("sRonda").href = Core.urlRonda(st.ronda, st.cadena, "https://api.drand.sh");
+  $("sRonda").textContent = "#" + st.ronda + " (" + st.cadena.id + "), publicada el " + UI.fmtFecha(st.fechaRonda, true) + " hs" + (st.vivo && !PRUEBA ? ", segundos después del toque" : "");
+  $("envivo").innerHTML = (PRUEBA ? "Ensayo" : '<i class="punto"></i>Sorteado en vivo') + " · " + UI.esc(UI.fmtFecha(res.cuando, true)) + " hs" + (st.vivo && !PRUEBA ? " · ronda #" + st.ronda : "");
+  if (!PRUEBA && !st.vivo) $("go").classList.add("hidden");
   $("zonaResultado").classList.remove("hidden");
   const grid = $("ganGrid"); grid.innerHTML = "";
   const giros = res.ganadores.map((g, i) => {
@@ -266,7 +276,7 @@ async function mostrar(res) {
   $("sHash").textContent = st.hashCalc;
   $("sCuando").textContent = UI.fmtFecha(res.cuando, true) + " hs, en este navegador. El resultado es el mismo para cualquiera que lo rehaga.";
   $("sFuentes").innerHTML = UI.htmlFuentes(res.info);
-  $("linkVerif").href = $("verif2").href = "verificar.html?codigo=" + res.codigo;
+  $("linkVerif").href = $("verif2").href = "verificar.html?" + (st.vivo && !PRUEBA ? "ronda=" + st.ronda + "&" : "") + "codigo=" + res.codigo;
   $("textoResultado").textContent = textoResultado(res);
   $("cardResultado").classList.remove("hidden");
   $("nota").textContent = PRUEBA ? "Ensayo: este resultado no vale. Tocá de nuevo para practicar otra vez." : "Resultado final. Cualquiera puede rehacerlo en la página de verificación y obtiene el mismo código.";
@@ -285,7 +295,7 @@ function textoResultado(res) {
     (st.cfg.reemplazos ? "\n\n" + st.cfg.reemplazos : "") +
     "\n\nCÓDIGO DEL SORTEO: " + res.codigo +
     "\nParticipantes: " + st.personas.length + " personas" + (st.padron.criterio && st.padron.criterio.porComentario ? ", " + st.usuarios.length + " comentarios (una chance cada uno, nadie gana dos veces)" : "") + "\nRonda drand " + st.cadena.id + " #" + st.ronda + ": " + Core.urlRonda(st.ronda, st.cadena) +
-    "\nSemilla: " + res.semilla + "\nHuella de la lista (SHA-256): " + st.hashCalc + "\nVerificalo: " + base + "verificar.html?codigo=" + res.codigo;
+    "\nSemilla: " + res.semilla + "\nHuella de la lista (SHA-256): " + st.hashCalc + "\nVerificalo: " + base + "verificar.html?" + (st.vivo && !PRUEBA ? "ronda=" + st.ronda + "&" : "") + "codigo=" + res.codigo;
 }
 
 // Acta en CSV: BOM y punto y coma para que Excel en castellano la abra de un doble clic.

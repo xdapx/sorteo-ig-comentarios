@@ -56,6 +56,17 @@
     if (Number(cfg.ronda) !== st.ronda) st.bloqueos.push("sorteo.json es inconsistente: dice ronda #" + cfg.ronda + " pero la fecha anunciada corresponde a la #" + st.ronda + ". Corré preparar.js de nuevo.");
     if (!Core.esMinutoEnPunto(cfg.fechaSorteo)) st.bloqueos.push("La hora del sorteo no está en minuto en punto (" + cfg.fechaSorteo + ").");
     st.fechaRonda = Core.fechaDeRonda(st.ronda, st.cadena);
+    // Modo vivo (sorteo.json → modo: "vivo"): la ronda de sorteo.json es la MÍNIMA (posterior a la lista).
+    // La que decide es la que sale justo después del toque; viaja en el link de verificación (?ronda=N)
+    // y en el código del sorteo, y su hora es la hora del vivo.
+    st.vivo = cfg.modo === "vivo";
+    st.rondaBase = st.ronda;
+    const rParam = Number(new URLSearchParams(location.search).get("ronda"));
+    if (st.vivo && Number.isInteger(rParam) && rParam > 0) {
+      if (rParam < st.rondaBase) st.bloqueos.push("La ronda #" + rParam + " es anterior a la mínima (#" + st.rondaBase + "): salió antes de que la lista estuviera cerrada y no vale.");
+      else { st.ronda = rParam; st.fechaRonda = Core.fechaDeRonda(rParam, st.cadena); }
+    }
+    st.rondaPendiente = st.vivo && st.ronda === st.rondaBase && !(Number.isInteger(rParam) && rParam > 0);
     st.generado = st.padron.generado && !isNaN(Date.parse(st.padron.generado)) ? new Date(st.padron.generado) : null;
     if (st.generado && st.generado.getTime() >= st.fechaRonda.getTime()) {
       const msg = "La lista se generó DESPUÉS de que la ronda fuera pública (" + fmtFecha(st.generado, true) + " hs): así el sorteo no vale, la ronda tiene que ser posterior a la lista.";
@@ -191,7 +202,7 @@
       : '<span class="err">✗ DESPUÉS de la ronda</span>';
     el.innerHTML = '<div class="muted">Consultando GitHub…</div>';
     try {
-      const a = await Core.anclaGitHub(cfg.repo, st.hashCfg, st.ronda);
+      const a = await Core.anclaGitHub(cfg.repo, st.hashCfg, st.rondaBase);
       if (!a) filas.push('<li><b>GitHub Pages:</b> <span class="muted">sin repositorio configurado</span></li>');
       else if (a.primero) filas.push('<li><b>Publicada en GitHub Pages</b> el ' + fmtFecha(a.primero.creado, true) + " hs — " + veredicto(a.primero.creado) + ' <span class="muted">(fecha puesta por GitHub, no por el organizador · <a class="link" href="' + esc(a.primero.url) + '" target="_blank" rel="noopener">commit</a> · <a class="link" href="' + esc(a.urlDeploys) + '" target="_blank" rel="noopener">deploys</a>)</span></li>');
       else filas.push('<li><b>GitHub Pages:</b> <span class="warn">no encontré ninguna publicación con esta lista y esta ronda</span> <span class="muted">(revisé ' + a.deploys + ' deploys: ¿todavía no se subió, o se cambió después?)</span></li>');
