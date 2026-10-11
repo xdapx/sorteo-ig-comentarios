@@ -6,8 +6,8 @@
 <title>Sorteo</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="fuentes/fuentes.css">
-<link rel="stylesheet" href="sorteo.css">
-<link rel="stylesheet" href="tema-carrera.css">
+<link rel="stylesheet" href="sorteo.css?v=2">
+<link rel="stylesheet" href="tema-carrera.css?v=2">
 </head>
 <body>
 <div class="wrap">
@@ -37,8 +37,7 @@
   <section class="card largada" id="cardSorteo">
     <div class="cuadros" aria-hidden="true"></div>
     <div class="semaforo" id="semaforo" aria-hidden="true"></div>
-    <div class="reloj" id="reloj" aria-live="off"></div>
-    <div class="cuando-txt">Sorteo: <b id="fechaRonda">…</b> · ronda <b id="ronda">#…</b> de drand · <span id="cantidades"></span></div>
+    <div class="cuando-txt">Ronda <b id="ronda">#…</b> de drand (<span id="fechaRonda">…</span>) · <span id="cantidades"></span></div>
     <button id="go" class="btn-go" disabled>Largar el sorteo</button>
     <p id="estado" class="estado" aria-live="polite"></p>
     <p class="nota" id="nota">El número que decide el sorteo lo publica <b>drand</b>, un servicio público de azar, en el segundo anunciado. Antes de ese momento no lo conoce nadie, tampoco el organizador. Con la misma lista y la misma ronda el resultado es siempre el mismo: no existe "sortear de nuevo".</p>
@@ -86,9 +85,9 @@
   <section class="card">
     <h2>Cómo se elige</h2>
     <ol class="pasos">
-      <li><b>La lista se publica antes.</b> Todos los que comentaron, una vez cada uno, con su huella SHA-256 anunciada en Instagram.</li>
+      <li><b>La lista se publica antes.</b> Cada comentario es un boleto, con su huella SHA-256 publicada antes del sorteo.</li>
       <li><b>La ronda se fija antes.</b> El número al azar sale de drand en el segundo exacto del sorteo. Hasta ese momento no existe.</li>
-      <li><b>Un cálculo público.</b> Cada usuario recibe un puntaje SHA-256(semilla:usuario). Los 5 más bajos ganan y los siguientes son suplentes.</li>
+      <li><b>Un cálculo público.</b> Cada boleto recibe un puntaje SHA-256(semilla:boleto). Se ordenan de menor a mayor y cada persona sale una sola vez, en su mejor boleto. Los 5 primeros ganan y los que siguen son suplentes.</li>
       <li><b>Cualquiera lo repite.</b> La página de verificación rehace todo en tu navegador y tiene que dar el mismo código.</li>
     </ol>
   </section>
@@ -97,8 +96,8 @@
 </div>
 <canvas id="confeti" aria-hidden="true"></canvas>
 
-<script src="sorteo-core.js"></script>
-<script src="sorteo-ui.js"></script>
+<script src="sorteo-core.js?v=2"></script>
+<script src="sorteo-ui.js?v=2"></script>
 <script>
 "use strict";
 const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
@@ -112,7 +111,8 @@ async function init() {
   document.title = (st.cfg.titulo || "Sorteo") + " · " + (st.cfg.organizador || "Vesl Sorteos");
   if (st.cfg.fondo) { $("posterImg").src = st.cfg.fondo; $("posterImg").hidden = false; }
   $("chips").innerHTML = [
-    [UI.fmtN(st.usuarios.length), "participantes"],
+    [UI.fmtN(st.personas.length), "personas"],
+    ...(st.padron.criterio && st.padron.criterio.porComentario ? [[UI.fmtN(st.usuarios.length), "comentarios"]] : []),
     [UI.fmtN(st.cfg.ganadores || 0), "ganadores"],
     [UI.fmtN(st.cfg.suplentes || 0), "suplentes"]
   ].map(([n, t]) => '<span class="chip"><b>' + n + "</b>" + t + "</span>").join("");
@@ -129,24 +129,16 @@ async function init() {
   tick(); setInterval(tick, 250);
 }
 
-/* ---------- Reloj ---------- */
-function pintarReloj(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), seg = s % 60;
-  const pad = n => String(n).padStart(2, "0");
-  const partes = (d ? [[d, d === 1 ? "día" : "días"]] : []).concat([[pad(h), "horas"], [pad(m), "min"], [pad(seg), "seg"]]);
-  const html = partes.map(([v, t]) => '<div class="seg"><b>' + v + "</b><span>" + t + "</span></div>").join("");
-  if ($("reloj").innerHTML !== html) $("reloj").innerHTML = html;
-  $("reloj").classList.toggle("listo", ms <= 0);
-}
+/* ---------- Estado del botón ---------- */
+// Sin cuenta regresiva a propósito: el link se manda cuando la ronda ya salió. Si alguien entra
+// antes, ve desde qué hora se habilita y nada más.
 function tick() {
   if (!st || corriendo || resultado) return;
-  if (st.bloqueos.length) { pintarReloj(0); $("go").disabled = true; $("estado").innerHTML = '<span class="err">No se puede sortear: revisá los avisos de arriba.</span>'; return; }
-  if (st.semillaManual) { pintarReloj(0); $("go").disabled = false; $("estado").textContent = "Reproducción con semilla manual"; return; }
+  if (st.bloqueos.length) { $("go").disabled = true; $("estado").innerHTML = '<span class="err">No se puede sortear: revisá los avisos de arriba.</span>'; return; }
+  if (st.semillaManual) { $("go").disabled = false; $("estado").textContent = "Reproducción con semilla manual"; return; }
   const faltan = st.fechaRonda.getTime() - Date.now();
-  pintarReloj(faltan);
   $("go").disabled = faltan > 0;
-  $("estado").textContent = faltan > 0 ? "El botón se habilita cuando sale la ronda (según el reloj de este dispositivo)." : "La ronda ya salió. Listo para largar.";
+  $("estado").textContent = faltan > 0 ? "Se habilita a las " + UI.fmtFecha(st.fechaRonda) + " hs." : "";
 }
 
 /* ---------- Semáforo de largada ---------- */
@@ -168,7 +160,7 @@ async function largar() {
 
 async function calcular() {
   const info = await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; });
-  $("estado").textContent = "Ordenando a los " + UI.fmtN(st.usuarios.length) + " participantes…";
+  $("estado").textContent = "Ordenando " + UI.fmtN(st.usuarios.length) + " boletos…";
   const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes);
   res.info = info; res.cuando = new Date();
   res.codigo = await Core.codigoResultado({ hashLista: st.hashCalc, cadena: st.cadena.id, ronda: st.ronda, semilla: res.semilla, ganadores: res.ganadores, suplentes: res.suplentes });
@@ -197,13 +189,15 @@ async function ejecutar() {
 /* ---------- Revelado ---------- */
 // Nombres de relleno para el rodillo: deterministas, salen del padrón (sin Math.random).
 function relleno(i, cuantos) {
-  const n = st.usuarios.length, out = [];
-  for (let k = 0; k < cuantos; k++) out.push(st.usuarios[(k * 7919 + i * 131 + 17) % n]);
+  const n = st.personas.length, out = [];
+  for (let k = 0; k < cuantos; k++) out.push(st.personas[(k * 7919 + i * 131 + 17) % n]);
   return out;
 }
+let boletoDe = new Map(); // usuario -> el boleto con el que salió
 function detalle(u) {
-  const ev = st.evidencia && st.evidencia.comentarios && st.evidencia.comentarios[u];
-  const url = UI.linkComentario(st, u);
+  const evs = st.evidencia && st.evidencia.comentarios;
+  const ev = evs && (evs[boletoDe.get(u)] || evs[u]);
+  const url = UI.linkComentario(st, u, boletoDe.get(u));
   return (ev && ev.ts ? "comentó el " + UI.esc(UI.fmtFecha(ev.ts)) + " hs" : "") +
     (url ? (ev && ev.ts ? " · " : "") + '<a class="link" href="' + UI.esc(url) + '" target="_blank" rel="noopener">ver comentario</a>' : "");
 }
@@ -220,6 +214,7 @@ function girar(slot, nombres, demora) {
   });
 }
 async function mostrar(res) {
+  boletoDe = new Map(res.orden.map(p => [p.usuario, p.boleto]));
   $("go").classList.add("hidden");
   $("zonaResultado").classList.remove("hidden");
   const grid = $("ganGrid"); grid.innerHTML = "";
@@ -239,7 +234,7 @@ async function mostrar(res) {
     $("supLbl").classList.remove("hidden");
     $("supGrid").innerHTML = res.suplentes.map((u, i) =>
       '<div class="box" style="animation-delay:' + (i * 70) + 'ms"><span class="n">' + (i + 1) + '</span><span class="u">@' + UI.esc(u) + "</span>" +
-      (UI.linkComentario(st, u) ? '<a class="link" href="' + UI.esc(UI.linkComentario(st, u)) + '" target="_blank" rel="noopener">ver</a>' : "") + "</div>").join("");
+      (UI.linkComentario(st, u, boletoDe.get(u)) ? '<a class="link" href="' + UI.esc(UI.linkComentario(st, u, boletoDe.get(u))) + '" target="_blank" rel="noopener">ver</a>' : "") + "</div>").join("");
   }
   $("codigo").textContent = res.codigo;
   $("sSemilla").textContent = res.semilla;
@@ -258,13 +253,13 @@ async function mostrar(res) {
 
 function textoResultado(res) {
   const base = location.origin + location.pathname.replace(/[^/]*$/, "");
-  const linea = (u, i) => (i + 1) + ". @" + u + (UI.linkComentario(st, u) ? "  " + UI.linkComentario(st, u) : "");
+  const linea = (u, i) => (i + 1) + ". @" + u + (UI.linkComentario(st, u, boletoDe.get(u)) ? "  " + UI.linkComentario(st, u, boletoDe.get(u)) : "");
   return (st.cfg.titulo || "Sorteo") + " · " + (st.cfg.organizador || "") +
     "\n\nGANADORES:\n" + res.ganadores.map(linea).join("\n") +
     "\n\nSUPLENTES (en orden):\n" + res.suplentes.map(linea).join("\n") +
     (st.cfg.reemplazos ? "\n\n" + st.cfg.reemplazos : "") +
     "\n\nCÓDIGO DEL SORTEO: " + res.codigo +
-    "\nParticipantes: " + st.usuarios.length + "\nRonda drand " + st.cadena.id + " #" + st.ronda + ": " + Core.urlRonda(st.ronda, st.cadena) +
+    "\nParticipantes: " + st.personas.length + " personas" + (st.padron.criterio && st.padron.criterio.porComentario ? ", " + st.usuarios.length + " comentarios (una chance cada uno, nadie gana dos veces)" : "") + "\nRonda drand " + st.cadena.id + " #" + st.ronda + ": " + Core.urlRonda(st.ronda, st.cadena) +
     "\nSemilla: " + res.semilla + "\nHuella de la lista (SHA-256): " + st.hashCalc + "\nVerificalo: " + base + "verificar.html?codigo=" + res.codigo;
 }
 
@@ -274,13 +269,13 @@ function bajarActa() {
   const q = s => '"' + String(s == null ? "" : s).replace(/"/g, '""') + '"';
   const filas = [
     "# Sorteo;" + q(st.cfg.titulo), "# Reel;" + st.cfg.reel, "# Sorteado;" + UI.fmtFecha(res.cuando, true),
-    "# Participantes;" + st.usuarios.length, "# Huella de la lista (SHA-256);" + st.hashCalc,
+    "# Participantes;" + st.personas.length + " personas / " + st.usuarios.length + " boletos", "# Huella de la lista (SHA-256);" + st.hashCalc,
     "# Ronda drand " + st.cadena.id + ";" + st.ronda, "# Semilla;" + res.semilla, "# Código del sorteo;" + res.codigo,
     "# Reemplazos;" + q(st.cfg.reemplazos || ""), "",
     ["puesto", "tipo", "usuario", "sigue a las 2 cuentas (control manual)", "link al comentario"].map(q).join(";")
   ];
-  res.ganadores.forEach((u, i) => filas.push([i + 1, "ganador", "@" + u, "", UI.linkComentario(st, u)].map(q).join(";")));
-  res.suplentes.forEach((u, i) => filas.push([i + 1, "suplente", "@" + u, "", UI.linkComentario(st, u)].map(q).join(";")));
+  res.ganadores.forEach((u, i) => filas.push([i + 1, "ganador", "@" + u, "", UI.linkComentario(st, u, boletoDe.get(u))].map(q).join(";")));
+  res.suplentes.forEach((u, i) => filas.push([i + 1, "suplente", "@" + u, "", UI.linkComentario(st, u, boletoDe.get(u))].map(q).join(";")));
   const blob = new Blob(["﻿" + filas.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
   a.download = "acta_sorteo_" + res.codigo.slice(0, 8) + ".csv";

@@ -6,8 +6,8 @@
 <title>Verificar sorteo</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="fuentes/fuentes.css">
-<link rel="stylesheet" href="sorteo.css">
-<link rel="stylesheet" href="tema-carrera.css">
+<link rel="stylesheet" href="sorteo.css?v=2">
+<link rel="stylesheet" href="tema-carrera.css?v=2">
 </head>
 <body>
 <div class="wrap">
@@ -90,7 +90,7 @@
       <ol>
         <li id="comoLista"><b>La lista.</b> Se bajan todos los comentarios del reel con la API oficial de Instagram hasta la fecha de corte. Cada usuario entra <b>una sola vez</b>, haya comentado 1 o 500 veces. La lista se publica antes del sorteo con su huella (SHA-256) y esa huella se anuncia en Instagram.</li>
         <li><b>El número al azar no lo elige nadie.</b> Sale de una ronda de drand anunciada de antemano; ese número no existe hasta el segundo exacto en que se publica y no se puede cambiar.</li>
-        <li><b>El orden.</b> Con ese número como semilla, a cada participante se le calcula un puntaje (SHA-256 de <code>semilla:usuario</code>) y se ordenan de menor a mayor. Los primeros son los ganadores; los que siguen, los suplentes.</li>
+        <li id="comoOrden"><b>El orden.</b> Con ese número como semilla, a cada participante se le calcula un puntaje (SHA-256 de <code>semilla:usuario</code>) y se ordenan de menor a mayor. Los primeros son los ganadores; los que siguen, los suplentes.</li>
         <li><b>Sin repetir.</b> Misma lista + misma ronda = siempre el mismo resultado y el mismo código. No hay forma de "tirar de nuevo" hasta que salga alguien.</li>
         <li><b>Reemplazos.</b> Si un ganador no cumple los requisitos publicados, pasa al siguiente suplente <b>en orden</b> y se publica el motivo. El organizador no elige a quién.</li>
       </ol>
@@ -120,8 +120,8 @@ python verificar.py</pre>
   <footer id="pie"></footer>
 </div>
 
-<script src="sorteo-core.js"></script>
-<script src="sorteo-ui.js"></script>
+<script src="sorteo-core.js?v=2"></script>
+<script src="sorteo-ui.js?v=2"></script>
 <script>
 "use strict";
 const Core = window.SorteoCore, UI = window.SorteoUI, $ = UI.$;
@@ -177,7 +177,7 @@ async function ejecutar() {
     $("semillaBox").classList.remove("hidden");
     $("sSemilla").textContent = info.randomness;
     $("sFuentes").innerHTML = UI.htmlFuentes(info);
-    $("estado").textContent = "Calculando el orden de " + UI.fmtN(st.usuarios.length) + " participantes…";
+    $("estado").textContent = "Ordenando " + UI.fmtN(st.usuarios.length) + " boletos…";
     const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes,
       (i, n) => { $("estado").textContent = "Calculando " + UI.fmtN(i) + " / " + UI.fmtN(n) + "…"; });
     res.info = info;
@@ -185,12 +185,14 @@ async function ejecutar() {
     resultado = res;
     posiciones = new Map(res.orden.map((p, i) => [p.usuario, i]));
     $("estado").textContent = "";
-    const item = (u, i) => '<li><span class="n">' + (i + 1) + "</span><span>@" + UI.esc(u) + "</span>" + (UI.linkComentario(st, u) ? ' <a class="link chica" href="' + UI.esc(UI.linkComentario(st, u)) + '" target="_blank" rel="noopener">ver comentario</a>' : "") + "</li>";
+    const bol = new Map(res.orden.map(p => [p.usuario, p.boleto]));
+    const link = u => UI.linkComentario(st, u, bol.get(u));
+    const item = (u, i) => '<li><span class="n">' + (i + 1) + "</span><span>@" + UI.esc(u) + "</span>" + (link(u) ? ' <a class="link chica" href="' + UI.esc(link(u)) + '" target="_blank" rel="noopener">ver comentario</a>' : "") + "</li>";
     const pintar = () => {
       $("listaGan").innerHTML = res.ganadores.map(item).join("");
       $("listaSup").innerHTML = res.suplentes.map(item).join("");
       const ev = st.evidencia;
-      $("evidenciaTxt").innerHTML = ev && ev.ok ? "Cada nombre linkea a su comentario en el reel (id y fecha del primer comentario de cada participante, publicados en <a class='link' href='" + UI.esc(st.cfg.evidencia) + "' target='_blank' rel='noopener'>evidencia.json</a>). Si un link no abre, el comentario fue borrado o la cuenta es privada."
+      $("evidenciaTxt").innerHTML = ev && ev.ok ? "Cada nombre linkea a su comentario en el reel (id y fecha del comentario con el que salió, publicados en <a class='link' href='" + UI.esc(st.cfg.evidencia) + "' target='_blank' rel='noopener'>evidencia.json</a>). Si un link no abre, el comentario fue borrado o la cuenta es privada."
         : ev && ev.error ? '<span class="warn">No se pudo cargar la evidencia por usuario (' + UI.esc(ev.error) + ").</span>" : ev ? '<span class="err">La evidencia por usuario no coincide con su huella publicada.</span>' : "";
     };
     pintar();

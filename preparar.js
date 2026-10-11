@@ -15,6 +15,9 @@
                 Es el criterio anunciado en el reel del Alpine: "el comentario con menos likes se lleva el premio,
                 y si hay más de uno con cero likes se sortea entre ellos". Publica likes.json con la cantidad de
                 likes de TODOS los comentarios, para que cualquiera pueda comprobar el mínimo y quiénes lo tenían.
+  --por-comentario  Cada comentario es una chance: el padrón lleva un boleto "usuario#n" por cada comentario
+                (n = el n-ésimo de esa persona por fecha; el id va en evidencia.json). Igual cada persona sale
+                una sola vez: el sorteo se queda con su mejor boleto. No se combina con --menos-likes.
   --mencion     Solo entran los usuarios que en algún comentario etiquetaron a alguien (@alguien).
   --excluir     Usuarios que no participan (el dueño de la cuenta, el equipo, etc.).
   --corte       Fecha y hora límite de los comentarios, ISO con zona horaria. Los posteriores no cuentan.
@@ -96,6 +99,8 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
   let descartadasRespuestas = 0;
   if (iU < 0) salir("El CSV no tiene columna 'username'. Cabecera: " + cab.join(","));
   const menosLikes = !!o["menos-likes"];
+  const porComentario = !!o["por-comentario"];
+  if (porComentario && menosLikes) salir("--por-comentario y --menos-likes no se combinan.");
   if (menosLikes && iL < 0) salir("--menos-likes necesita la columna 'like_count' y el CSV no la tiene. Volvé a bajar los comentarios con index.html o sorteo_ig.py. Cabecera: " + cab.join(","));
   if (menosLikes && iI < 0) salir("--menos-likes necesita la columna 'id': cada comentario tiene que ser identificable para poder mostrarlo.");
 
@@ -161,10 +166,20 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
     }
     usuarios = [...mejor.keys()].sort();
     for (const u of usuarios) { const c = mejor.get(u); comentarios[u] = { id: c.id, ts: c.ts, likes: c.likes }; }
+  } else if (porComentario) {
+    // Un boleto por comentario: usuario#1 es su comentario más viejo, usuario#2 el siguiente, etc.
+    usuarios = [];
+    const deCada = new Map();
+    for (const c of todosComentarios) if (elegible(c.u)) (deCada.get(c.u) || deCada.set(c.u, []).get(c.u)).push(c);
+    for (const u of [...deCada.keys()].sort()) {
+      const cs = deCada.get(u).sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
+      cs.forEach((c, i) => { const b = u + "#" + (i + 1); usuarios.push(b); comentarios[b] = { id: c.id, ts: c.ts }; });
+    }
   } else {
     usuarios = todos.filter(elegible).sort();
     for (const u of usuarios) comentarios[u] = porUsuario.get(u).primero || { id: "", ts: "" };
   }
+  const personas = new Set(usuarios.map(Core.usuarioDe)).size;
   Core.validarLista(usuarios);
   const sha256 = await Core.hashLista(usuarios);
   const evidenciaSha256 = await Core.hashEvidencia(usuarios, comentarios);
@@ -183,6 +198,7 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
       unaEntradaPorUsuario: true,
       cuentanRespuestas: conRespuestas,
       menosLikes,
+      porComentario,
       minLikes: menosLikes ? minLikes : null,
       comentariosCandidatos: menosLikes ? candidatos.length : null,
       requiereMencion,
@@ -191,12 +207,16 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
         ? "Entran solo los comentarios con MENOS likes del reel: los que tenían " + minLikes + " like" + (minLikes === 1 ? "" : "s") +
           " al momento del corte (" + candidatos.length.toLocaleString("es-AR") + " comentarios de " + totalComentarios.toLocaleString("es-AR") +
           "). La cantidad de likes de todos los comentarios está publicada en likes.json. Una entrada por persona, aunque haya dejado varios comentarios sin likes"
+        : porComentario
+          ? "Cada comentario es una chance (" + usuarios.length.toLocaleString("es-AR") + " comentarios de " + personas.toLocaleString("es-AR") +
+            " personas), pero cada persona puede salir una sola vez: si ya salió, sus otros comentarios no cuentan para los puestos siguientes"
         : "Una entrada por usuario, sin importar cuántos comentarios haya dejado") +
         (requiereMencion ? ", y solo si etiquetó a alguien en algún comentario" : "") + "."
     },
     hashDefinicion: "SHA-256 del texto formado por cada usuario seguido de un salto de línea, en este orden.",
     sha256,
-    participantes: usuarios.length,
+    participantes: personas,
+    boletos: usuarios.length,
     // Números a la vista: la transparencia se lee mejor en un tablero que en un párrafo.
     resumen: (() => {
       const elegibles = todosComentarios.filter(c => elegible(c.u));
@@ -214,7 +234,8 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
         personasSinLikes: new Set(ceros.map(c => c.u)).size,
         minLikes: menosLikes ? minLikes : null,
         enElMinimo: menosLikes ? candidatos.length : null,
-        participantes: usuarios.length,
+        participantes: personas,
+        boletos: porComentario ? usuarios.length : null,
         masLikes: top ? { usuario: top.u, likes: top.likes, id: top.id, ts: top.ts } : null,
         reparto: Object.keys(reparto).map(Number).sort((a, b) => a - b).map(k => [k, reparto[k]])
       };
@@ -230,6 +251,7 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
     hashDefinicion: "SHA-256 del texto formado por usuario, tab, id, tab, timestamp y salto de línea, por cada usuario en el orden de participantes.json.",
     definicion: menosLikes
       ? "Por cada participante, el comentario con el que entró: el más antiguo de los suyos que tenía " + minLikes + " like" + (minLikes === 1 ? "" : "s") + " (el mínimo del reel) al momento del corte."
+      : porComentario ? "Por cada boleto usuario#n, el comentario al que corresponde: el n-ésimo de esa persona, ordenados por fecha."
       : "Por cada participante, su primer comentario en el reel.",
     sha256: evidenciaSha256, comentarios
   }, null, 1) + "\n", "utf8");
@@ -266,7 +288,7 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
   cfg.evidencia = "evidencia.json";
   cfg.evidenciaSha256 = evidenciaSha256;
   cfg.csvSha256 = csvSha256;
-  cfg.criterio = menosLikes ? "menos-likes" : "todos";
+  cfg.criterio = menosLikes ? "menos-likes" : porComentario ? "por-comentario" : "todos";
   cfg.minLikes = menosLikes ? minLikes : null;
   cfg.likes = menosLikes ? "likes.json" : "";
   cfg.likesSha256 = likesSha256;
@@ -296,7 +318,7 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
     console.log("  likes.json:              " + likesSha256.slice(0, 12) + "…  (" + (fs.statSync(likesPath).size / 1048576).toFixed(2) + " MB)");
     console.log("  más likes (premio 2):    mas-likes.txt  — NO se publica, es para elegir a mano");
   }
-  console.log("PARTICIPANTES:             " + usuarios.length.toLocaleString("es-AR"));
+  console.log("PARTICIPANTES:             " + personas.toLocaleString("es-AR") + (porComentario ? " personas, " + usuarios.length.toLocaleString("es-AR") + " boletos (uno por comentario)" : ""));
   console.log("Respuestas dentro de un hilo: " + (conRespuestas ? "CUENTAN (--con-respuestas)" : descartadasRespuestas.toLocaleString("es-AR") + " descartadas (no cuentan)"));
   if (corteLimite !== null) console.log("CORTE ANUNCIADO:           " + fmt(new Date(corteLimite)) + " hs  (descarté " + descartadosPorCorte.toLocaleString("es-AR") + " comentarios posteriores)");
   console.log("Último comentario contado: " + (corte ? fmt(new Date(corte)) + " hs" : "—"));

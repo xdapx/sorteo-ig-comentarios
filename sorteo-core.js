@@ -4,13 +4,16 @@
   así cualquiera puede reproducir el resultado con exactamente el mismo código.
 
   Definiciones exactas (para reproducir sin leer el código):
-    usuario   = el string tal cual figura en participantes.json (minúsculas, sin @, solo [a-z0-9._], 1 a 30).
+    boleto    = el string tal cual figura en participantes.json. Puede ser un usuario (minúsculas, sin @, solo
+                [a-z0-9._], 1 a 30) o un usuario con número de comentario, "usuario#n" (n = su n-ésimo
+                comentario por fecha, el id está en evidencia.json): así cada comentario es una chance.
     huella    = SHA-256 (hex) de los bytes UTF-8 de: cada usuario seguido de "\n", concatenados en el orden del archivo.
     ronda     = floor((t - 1692803367) / 3) + 1, con t = fecha del sorteo en epoch (segundos). Cadena drand "quicknet".
     semilla   = campo "randomness" de esa ronda (64 hex en minúscula), usado como TEXTO.
-    puntaje   = SHA-256 (hex) de los bytes UTF-8 de: semilla + ":" + usuario.
-    orden     = puntaje ascendente (comparación de strings hex); desempate por usuario ascendente.
-    ganadores = primeros N; suplentes = siguientes M.
+    puntaje   = SHA-256 (hex) de los bytes UTF-8 de: semilla + ":" + boleto.
+    orden     = boletos por puntaje ascendente (comparación de strings hex); desempate por boleto ascendente.
+                Después se recorre ese orden y cada usuario aparece una sola vez, en su mejor boleto: nadie gana dos veces.
+    ganadores = primeros N usuarios; suplentes = siguientes M.
     código    = SHA-256 (hex) de: huella + "|" + cadena + "|" + ronda + "|" + semilla + "|" + ganadores unidos por "," + "|" + suplentes unidos por ",".
 */
 (function (root, factory) {
@@ -51,12 +54,15 @@
   const esHex64 = s => /^[0-9a-f]{64}$/.test(String(s || ""));
   // Instagram solo permite letras minúsculas, números, punto y guion bajo (1 a 30). Cualquier otra cosa es fabricada.
   const esUsuarioIG = u => /^[a-z0-9._]{1,30}$/.test(String(u));
+  // Boleto: un usuario solo (una chance) o "usuario#n", su n-ésimo comentario (una chance por comentario).
+  const esBoleto = b => /^[a-z0-9._]{1,30}(#[1-9][0-9]{0,4})?$/.test(String(b));
+  const usuarioDe = b => String(b).split("#")[0];
   function validarLista(usuarios) {
     if (!Array.isArray(usuarios) || !usuarios.length) throw new Error("La lista está vacía.");
     const vistos = new Set();
     usuarios.forEach((u, i) => {
-      if (typeof u !== "string" || u !== normalizarUsuario(u) || !esUsuarioIG(u)) throw new Error("usuario inválido en la posición " + (i + 1) + ": " + JSON.stringify(u));
-      if (vistos.has(u)) throw new Error("usuario repetido: " + u);
+      if (typeof u !== "string" || u !== normalizarUsuario(u) || !esBoleto(u)) throw new Error("usuario inválido en la posición " + (i + 1) + ": " + JSON.stringify(u));
+      if (vistos.has(u)) throw new Error("boleto repetido: " + u);
       vistos.add(u);
     });
     return true;
@@ -113,12 +119,21 @@
       if (onProgreso) onProgreso(Math.min(i + LOTE, lista.length), lista.length);
     }
     puntajes.sort((a, b) => (a.puntaje < b.puntaje ? -1 : a.puntaje > b.puntaje ? 1 : (a.usuario < b.usuario ? -1 : 1)));
+    // Cada usuario una sola vez, en su mejor boleto. Con una lista sin "#" esto no cambia nada.
+    const yaSalio = new Set(), orden = [];
+    for (const p of puntajes) {
+      const u = usuarioDe(p.usuario);
+      if (yaSalio.has(u)) continue;
+      yaSalio.add(u);
+      orden.push({ usuario: u, boleto: p.usuario, puntaje: p.puntaje });
+    }
     const nG = Math.max(0, Number(nGanadores) || 0), nS = Math.max(0, Number(nSuplentes) || 0);
     return {
       semilla,
-      orden: puntajes,
-      ganadores: puntajes.slice(0, nG).map(p => p.usuario),
-      suplentes: puntajes.slice(nG, nG + nS).map(p => p.usuario)
+      boletos: puntajes.length,
+      orden,
+      ganadores: orden.slice(0, nG).map(p => p.usuario),
+      suplentes: orden.slice(nG, nG + nS).map(p => p.usuario)
     };
   }
 
@@ -218,7 +233,7 @@
   }
 
   return {
-    CADENAS, ESPEJOS, REGEX_FECHA, sha256, normalizarUsuario, esHex64, esUsuarioIG, validarLista, hashLista, hashEvidencia,
+    CADENAS, ESPEJOS, REGEX_FECHA, sha256, normalizarUsuario, esHex64, esUsuarioIG, esBoleto, usuarioDe, validarLista, hashLista, hashEvidencia,
     rondaParaFecha, esMinutoEnPunto, fechaDeRonda, urlRonda, shortcodeDeReel, urlComentario, puntaje, sortear, codigoResultado,
     clasificarFallas, obtenerRonda, anclaGitHub, fechaWayback
   };

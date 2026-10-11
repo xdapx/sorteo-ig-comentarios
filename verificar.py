@@ -15,7 +15,8 @@ QUICKNET = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971"
 GENESIS, PERIODO = 1692803367, 3
 ESPEJOS = ["https://api.drand.sh", "https://api2.drand.sh", "https://api3.drand.sh", "https://drand.cloudflare.com"]
 RE_FECHA = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$")
-RE_USUARIO = re.compile(r"^[a-z0-9._]{1,30}$")
+# Boleto: un usuario, o "usuario#n" (su n-ésimo comentario) cuando cada comentario es una chance.
+RE_USUARIO = re.compile(r"^[a-z0-9._]{1,30}(#[1-9][0-9]{0,4})?$")
 RE_HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -45,7 +46,7 @@ def main():
             sys.exit(f"ERROR: usuario repetido: {u}")
         vistos.add(u)
     hash_lista = sha256("".join(u + "\n" for u in usuarios))
-    print(f"Participantes:     {len(usuarios)}")
+    print(f"Boletos:           {len(usuarios)}  ({len({u.split('#')[0] for u in usuarios})} personas)")
     print(f"Huella calculada:  {hash_lista}")
     if hash_lista != str(padron.get("sha256", "")).lower():
         sys.exit(f"ERROR: la huella no coincide con participantes.json ({padron.get('sha256')})")
@@ -96,10 +97,17 @@ def main():
         except (TypeError, ValueError):
             print("Consistencia randomness == SHA-256(firma): no verificable")
 
-    orden = sorted((sha256(semilla + ":" + u), u) for u in usuarios)
+    boletos = sorted((sha256(semilla + ":" + u), u) for u in usuarios)
+    # Cada persona una sola vez, en su mejor boleto: nadie gana dos veces.
+    orden, ya = [], set()
+    for _, b in boletos:
+        u = b.split("#")[0]
+        if u not in ya:
+            ya.add(u)
+            orden.append(u)
     n, m = int(cfg["ganadores"]), int(cfg["suplentes"])
-    ganadores = [u for _, u in orden[:n]]
-    suplentes = [u for _, u in orden[n:n + m]]
+    ganadores = orden[:n]
+    suplentes = orden[n:n + m]
     print(f"\nGANADORES ({n}):")
     for i, u in enumerate(ganadores, 1):
         print(f"  {i}. @{u}")

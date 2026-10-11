@@ -37,7 +37,7 @@ const fmt = d => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina
 
   try { Core.validarLista(usuarios); } catch (e) { salir("la lista no es válida: " + e.message); }
   const hash = await Core.hashLista(usuarios);
-  console.log("Participantes:      " + usuarios.length.toLocaleString("es-AR"));
+  console.log("Boletos:            " + usuarios.length.toLocaleString("es-AR") + "  (" + new Set(usuarios.map(Core.usuarioDe)).size.toLocaleString("es-AR") + " personas)");
   console.log("Huella calculada:   " + hash);
   if (hash !== String(padron.sha256 || "").toLowerCase()) salir("la huella no coincide con participantes.json (" + padron.sha256 + ")");
   if (hash !== String(cfg.participantesSha256 || "").toLowerCase()) salir("la huella no coincide con sorteo.json (" + cfg.participantesSha256 + ")");

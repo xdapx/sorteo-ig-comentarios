@@ -39,7 +39,13 @@
     // La huella se calcula sobre la lista TAL CUAL está en el archivo (igual que jq | sha256sum).
     st.hashCalc = await Core.hashLista(crudos);
     try { Core.validarLista(crudos); } catch (e) { st.bloqueos.push("La lista publicada no es válida (" + e.message + ")."); }
-    st.usuarios = crudos; st.setUsuarios = new Set(crudos);
+    // usuarios = boletos tal cual están publicados (con "#n" si cada comentario es una chance);
+    // personas = cada usuario una vez, que es lo que se busca, se cuenta y se muestra.
+    st.usuarios = crudos;
+    st.chances = new Map();
+    for (const b of crudos) { const u = Core.usuarioDe(b); st.chances.set(u, (st.chances.get(u) || 0) + 1); }
+    st.personas = [...st.chances.keys()];
+    st.setUsuarios = new Set(st.personas);
     st.hashOk = st.hashCalc === st.hashCfg && st.hashCalc === String(st.padron.sha256 || "").toLowerCase();
     if (!st.hashOk) st.bloqueos.push("La lista no coincide con la huella de sorteo.json (calculada " + st.hashCalc + ", publicada " + (st.hashCfg || "—") + ").");
     const scCfg = Core.shortcodeDeReel(cfg.reel), scPad = Core.shortcodeDeReel(st.padron.reel);
@@ -85,7 +91,7 @@
 
   function renderPadron(st) {
     const cfg = st.cfg, padron = st.padron;
-    if ($("kParticipantes")) $("kParticipantes").textContent = fmtN(st.usuarios.length);
+    if ($("kParticipantes")) $("kParticipantes").textContent = fmtN(st.personas.length);
     if ($("kComentarios")) $("kComentarios").textContent = padron.comentarios ? fmtN(padron.comentarios) : "—";
     if ($("kCorte")) $("kCorte").textContent = st.corte ? fmtFecha(st.corte) + " hs" : "—";
     const crit = padron.criterio || {};
@@ -98,6 +104,10 @@
       const conLikes = " like" + (nL === 1 ? "" : "s");
       if ($("comoLista")) $("comoLista").innerHTML = "<b>La lista.</b> Se bajan <b>todos</b> los comentarios del reel con la API oficial de Instagram hasta la fecha de corte y se anota cuántos likes tenía cada uno (está publicado en <a class='link' href='" + esc(cfg.likes || "likes.json") + "' target='_blank' rel='noopener'>likes.json</a>). Como el premio es para el comentario con <b>menos likes</b>, entran solo los que tenían el mínimo del reel: <b>" + nL + conLikes + "</b>" + (crit.comentariosCandidatos ? " (" + fmtN(crit.comentariosCandidatos) + " comentarios)" : "") + ". Cada persona entra <b>una sola vez</b>, aunque tenga varios de esos comentarios. La lista se publica antes del sorteo con su huella (SHA-256) y esa huella se anuncia en Instagram.";
       if ($("vLikesTxt")) { $("vLikesTxt").classList.remove("hidden"); if ($("vLikes") && cfg.likes) $("vLikes").href = cfg.likes; }
+    }
+    if (crit.porComentario) {
+      if ($("comoLista")) $("comoLista").innerHTML = "<b>La lista.</b> Se bajan <b>todos</b> los comentarios del reel con la API oficial de Instagram hasta el cierre. <b>Cada comentario es un boleto</b>: <code>usuario#1</code> es el primer comentario de esa persona, <code>usuario#2</code> el segundo, y así (el id de cada uno está en <a class='link' href='" + esc(cfg.evidencia || "evidencia.json") + "' target='_blank' rel='noopener'>evidencia.json</a>). Quien comentó más tiene más chances, pero <b>nadie puede ganar dos veces</b>. La lista se publica antes del sorteo con su huella (SHA-256).";
+      if ($("comoOrden")) $("comoOrden").innerHTML = "<b>El orden.</b> Con ese número como semilla, a cada boleto se le calcula un puntaje (SHA-256 de <code>semilla:boleto</code>) y se ordenan de menor a mayor. Se recorre ese orden y cada persona aparece una sola vez, en su mejor boleto: si ya salió, sus otros boletos se saltean. Los primeros son los ganadores; los que siguen, los suplentes.";
     }
     if ($("cantidades")) $("cantidades").textContent = fmtN(cfg.ganadores || 0) + " ganadores + " + fmtN(cfg.suplentes || 0) + " suplentes";
     const req = $("requisitos");
@@ -133,16 +143,16 @@
     const datos = [];
     datos.push(["comentarios leídos", fmtN(r.comentarios), ""]);
     datos.push(["personas que comentaron", fmtN(r.personasQueComentaron), ""]);
+    if (crit.porComentario) datos.push(["comentarios que participan (una chance cada uno)", fmtN(st.usuarios.length), ""]);
     if (crit.menosLikes) {
       datos.push([
         "comentarios con " + nL + " like" + plural(nL) + (nL === 0 ? "" : ", el mínimo"),
         fmtN(r.enElMinimo), "destaca"
       ]);
-    } else if (r.sinLikes != null) {
-      datos.push(["comentarios sin ningún like", fmtN(r.sinLikes), ""]);
     }
-    datos.push(["participan del sorteo", fmtN(r.participantes), "destaca"]);
-    if (r.masLikes) {
+    datos.push(["personas en el sorteo", fmtN(r.participantes), "destaca"]);
+    // Los likes solo se muestran cuando deciden algo (criterio "menos likes"); en un sorteo al azar distraen.
+    if (crit.menosLikes && r.masLikes) {
       const url = Core.urlComentario(st.cfg.reel, r.masLikes.id);
       const quien = "@" + esc(r.masLikes.usuario);
       datos.push([
@@ -160,7 +170,7 @@
 
     // Reparto de likes: se ve de un vistazo por qué ganó el que ganó.
     const rep = $("reparto");
-    if (rep && Array.isArray(r.reparto) && r.reparto.length > 1) {
+    if (rep && crit.menosLikes && Array.isArray(r.reparto) && r.reparto.length > 1) {
       const max = r.reparto.reduce((m, [, n]) => Math.max(m, n), 0) || 1;
       rep.innerHTML = '<div class="tit">Cuántos likes tenía cada comentario al cierre</div><ol>' +
         r.reparto.map(([k, n]) =>
@@ -213,15 +223,18 @@
       if (!u) { out.textContent = ""; return; }
       if (excluidos.has(u)) { out.innerHTML = '<span class="warn">@' + esc(u) + " está excluido del sorteo</span>"; return; }
       if (!st.setUsuarios.has(u)) { out.innerHTML = '<span class="err">✗ @' + esc(u) + ' no está en la lista</span> <span class="muted">' + porQueNo + (st.corte ? fmtFecha(st.corte) + " hs" : "corte") + ", y el usuario tiene que estar escrito igual que en Instagram</span>"; return; }
-      const ev = st.evidencia && st.evidencia.comentarios && st.evidencia.comentarios[u];
+      const evs = st.evidencia && st.evidencia.comentarios;
+      const ev = evs && (evs[u] || evs[u + "#1"]);
       const cuando = ev && ev.ts ? ' <span class="muted">(comentó el ' + fmtFecha(ev.ts) + " hs)</span>" : "";
       const posiciones = getPosiciones();
-      if (!posiciones) { out.innerHTML = '<span class="ok">✓ @' + esc(u) + " está en la lista</span>" + cuando; return; }
+      const n = st.chances.get(u) || 1;
+      const chances = crit.porComentario ? ' <span class="muted">con ' + n + (n === 1 ? " comentario: 1 chance" : " comentarios: " + n + " chances") + "</span>" : "";
+      if (!posiciones) { out.innerHTML = '<span class="ok">✓ @' + esc(u) + " está en la lista</span>" + chances + cuando; return; }
       const pos = posiciones.get(u), nG = Number(st.cfg.ganadores) || 0, nS = Number(st.cfg.suplentes) || 0;
       let rol = "";
       if (pos < nG) rol = ' <span class="ok">— ¡GANADOR!</span>';
       else if (pos < nG + nS) rol = ' <span class="warn">— suplente ' + (pos - nG + 1) + "</span>";
-      out.innerHTML = '<span class="ok">✓ @' + esc(u) + "</span> quedó en el puesto " + fmtN(pos + 1) + " de " + fmtN(st.usuarios.length) + rol + cuando;
+      out.innerHTML = '<span class="ok">✓ @' + esc(u) + "</span> quedó en el puesto " + fmtN(pos + 1) + " de " + fmtN(st.personas.length) + rol + chances;
     };
     inp.addEventListener("input", fn);
     return fn;
@@ -281,8 +294,10 @@
       return ev;
     } catch (e) { st.evidencia = { ok: false, error: e.message, comentarios: {} }; return st.evidencia; }
   }
-  function linkComentario(st, usuario) {
-    const ev = st.evidencia && st.evidencia.comentarios && st.evidencia.comentarios[usuario];
+  // Con boleto, el link va al comentario que salió sorteado; sin boleto, al primero de esa persona.
+  function linkComentario(st, usuario, boleto) {
+    const evs = st.evidencia && st.evidencia.comentarios;
+    const ev = evs && ((boleto && evs[boleto]) || evs[usuario] || evs[usuario + "#1"]);
     return ev && ev.id ? Core.urlComentario(st.cfg.reel, ev.id) : "";
   }
 

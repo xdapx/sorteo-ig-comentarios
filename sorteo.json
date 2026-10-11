@@ -22,19 +22,19 @@
   "reemplazos": "Después del sorteo se controla a mano que cada ganador siga a las dos cuentas. Si alguno no cumple, pasa al siguiente suplente en orden y se publica el motivo.",
   "anuncio": "",
   "archivo": {
-    "participantes": "https://web.archive.org/web/20261011160517/https://xdapx.github.io/sorteo-ig-comentarios/participantes.json",
-    "sorteo": "https://web.archive.org/web/20261011160531/https://xdapx.github.io/sorteo-ig-comentarios/sorteo.json"
+    "participantes": "",
+    "sorteo": ""
   },
   "participantes": "participantes.json",
-  "participantesSha256": "7a19290a0e006afa021f781088ad7bff55d61cf1991aac671fc8836daebdd418",
+  "participantesSha256": "226f336fec3e874409834e10c1616541ff1b21aa4c8c34c4d181965e2a673035",
   "evidencia": "evidencia.json",
-  "evidenciaSha256": "a070facf37a3eea0bb8f77e59296e40d32b2c6474759e657b3f33795ce98b83c",
+  "evidenciaSha256": "f9f19dbbd722a0a50ae60abac0f4d65947235ff0446b5510cc4fcd4e7512eac8",
   "csvSha256": "021048649e3269dced0f068c72eb1544f220e1b0dbf2431560e72b44c428a41a",
-  "criterio": "todos",
+  "criterio": "por-comentario",
   "minLikes": null,
   "likes": "",
   "likesSha256": "",
-  "fechaSorteo": "2026-10-11T21:00:00-03:00",
-  "ronda": 32986612,
+  "fechaSorteo": "2026-10-11T15:00:00-03:00",
+  "ronda": 32979412,
   "prueba": false
 }
