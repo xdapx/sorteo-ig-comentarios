@@ -173,17 +173,33 @@ async function largar() {
 
 // En vivo: cada toque usa la PRÓXIMA ronda de drand (sale en ≤3 s). Nadie la conoce cuando se toca el
 // botón y su número, que fija la hora, queda en el código del sorteo: vale el toque hecho en el vivo.
-function fijarRondaDelToque() {
+// La "próxima" se toma de drand (última publicada + 1), NO del reloj del dispositivo: con el reloj
+// adelantado pedía una ronda que todavía no existía y se quedaba reintentando; atrasado, usaría una ya pública.
+async function ultimaRondaDrand() {
+  for (const e of Core.ESPEJOS) {
+    try {
+      const r = await fetch(e + "/" + st.cadena.hash + "/public/latest", { cache: "no-store" });
+      if (!r.ok) continue;
+      const n = Number((await r.json()).round);
+      if (Number.isInteger(n) && n > 0) return n;
+    } catch (err) { /* siguiente espejo */ }
+  }
+  return null;
+}
+async function fijarRondaDelToque() {
   if (!st.vivo || PRUEBA || st.semillaManual) return;
-  const r = Math.max(st.rondaBase + 1, Core.rondaParaFecha(Math.floor(Date.now() / 1000), st.cadena) + 1);
+  const ultima = await ultimaRondaDrand();
+  if (ultima == null) throw Object.assign(new Error("sin drand"), { amigable: "No hay conexión con drand. Revisá la red y tocá de nuevo." });
+  const r = Math.max(st.rondaBase + 1, ultima + 1);
   st.ronda = r; st.fechaRonda = Core.fechaDeRonda(r, st.cadena);
 }
 async function calcular() {
-  fijarRondaDelToque();
+  await fijarRondaDelToque();
   const info = PRUEBA ? semillaEnsayo() : await UI.obtenerSemilla(st, msg => { $("estado").textContent = msg; });
   $("estado").textContent = "Ordenando " + UI.fmtN(st.usuarios.length) + " boletos…";
   const res = await Core.sortear(st.usuarios, info.randomness, st.cfg.ganadores, st.cfg.suplentes);
-  res.info = info; res.cuando = new Date();
+  // En vivo la hora es la de la ronda de drand (la real), no la del reloj del dispositivo.
+  res.info = info; res.cuando = st.vivo && !PRUEBA && !st.semillaManual ? st.fechaRonda : new Date();
   res.codigo = await Core.codigoResultado({ hashLista: st.hashCalc, cadena: st.cadena.id, ronda: st.ronda, semilla: res.semilla, ganadores: res.ganadores, suplentes: res.suplentes });
   return res;
 }
