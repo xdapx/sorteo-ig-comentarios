@@ -22,8 +22,8 @@
   "reemplazos": "Después del sorteo se controla a mano que cada ganador siga a las dos cuentas. Si alguno no cumple, pasa al siguiente suplente en orden y se publica el motivo.",
   "anuncio": "",
   "archivo": {
-    "participantes": "",
-    "sorteo": ""
+    "participantes": "https://web.archive.org/web/20261011160517/https://xdapx.github.io/sorteo-ig-comentarios/participantes.json",
+    "sorteo": "https://web.archive.org/web/20261011160531/https://xdapx.github.io/sorteo-ig-comentarios/sorteo.json"
   },
   "participantes": "participantes.json",
   "participantesSha256": "7a19290a0e006afa021f781088ad7bff55d61cf1991aac671fc8836daebdd418",
