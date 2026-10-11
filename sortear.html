@@ -6,8 +6,8 @@
 <title>Sorteo</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="fuentes/fuentes.css">
-<link rel="stylesheet" href="sorteo.css?v=3">
-<link rel="stylesheet" href="tema-carrera.css?v=3">
+<link rel="stylesheet" href="sorteo.css?v=4">
+<link rel="stylesheet" href="tema-carrera.css?v=4">
 </head>
 <body>
 <div class="wrap">
@@ -37,14 +37,17 @@
   <section class="card largada" id="cardSorteo">
     <div class="cuadros" aria-hidden="true"></div>
     <div class="semaforo" id="semaforo" aria-hidden="true"></div>
-    <div class="cuando-txt">Ronda <b id="ronda">#…</b> de drand (<span id="fechaRonda">…</span>) · <span id="cantidades"></span></div>
+    <!-- La ronda no se muestra acá: se fijó antes del vivo y su hora confunde a quien mira en vivo.
+         Va abajo, en los datos técnicos del resultado. -->
+    <div class="cuando-txt"><span id="cantidades"></span> · azar público de drand<span class="hidden"><b id="ronda"></b><span id="fechaRonda"></span></span></div>
     <button id="go" class="btn-go" disabled>Largar el sorteo</button>
     <p id="estado" class="estado" aria-live="polite"></p>
     <p class="nota" id="nota">El número que decide el sorteo lo publica <b>drand</b>, un servicio público de azar, en el segundo anunciado. Antes de ese momento no lo conoce nadie, tampoco el organizador. Con la misma lista y la misma ronda el resultado es siempre el mismo: no existe "sortear de nuevo".</p>
   </section>
 
   <div id="zonaResultado" class="hidden">
-    <div class="section-lbl" style="margin-top:30px">Ganadores</div>
+    <div class="envivo" id="envivo"></div>
+    <div class="section-lbl" style="margin-top:18px">Ganadores</div>
     <div id="ganGrid" class="grilla"></div>
     <div id="supLbl" class="section-lbl hidden" style="margin-top:22px">Suplentes, en orden</div>
     <div id="supGrid" class="boxes"></div>
@@ -56,7 +59,7 @@
       <code class="val" id="codigo"></code>
       <div class="sub">Se publica junto con los ganadores. Cualquiera que rehaga el sorteo en <a class="link" id="linkVerif" href="verificar.html">la página de verificación</a> obtiene exactamente este código.</div>
     </div>
-    <div class="row-k" style="margin-top:14px"><span>Ronda de drand</span><a id="sRonda" class="link" target="_blank" rel="noopener"></a></div>
+    <div class="row-k" style="margin-top:14px"><span>Número al azar: ronda de drand fijada antes del vivo</span><a id="sRonda" class="link" target="_blank" rel="noopener"></a></div>
     <div class="row-k"><span>Semilla (randomness de la ronda)</span><code id="sSemilla"></code></div>
     <div class="row-k"><span>Confirmación</span><span id="sFuentes"></span></div>
     <div class="row-k"><span>Huella de la lista (SHA-256)</span><code id="sHash"></code></div>
@@ -124,7 +127,7 @@ async function init() {
   $("fechaRonda").textContent = UI.fmtFecha(st.fechaRonda, true) + " hs";
   $("ronda").textContent = "#" + st.ronda;
   $("sRonda").href = Core.urlRonda(st.ronda, st.cadena, "https://api.drand.sh");
-  $("sRonda").textContent = "#" + st.ronda + " (" + st.cadena.id + ")";
+  $("sRonda").textContent = "#" + st.ronda + " (" + st.cadena.id + "), publicada el " + UI.fmtFecha(st.fechaRonda, true) + " hs, después de que la lista quedó cerrada";
   armarSemaforo();
   $("go").addEventListener("click", ejecutar);
   $("copy").addEventListener("click", () => UI.copiar($("textoResultado").textContent, $("copy"), $("textoResultado")));
@@ -236,6 +239,7 @@ function girar(slot, nombres, demora) {
 }
 async function mostrar(res) {
   boletoDe = new Map(res.orden.map(p => [p.usuario, p.boleto]));
+  $("envivo").innerHTML = (PRUEBA ? "Ensayo" : '<i class="punto"></i>Sorteado en vivo') + " · " + UI.esc(UI.fmtFecha(res.cuando, true)) + " hs";
   if (!PRUEBA) $("go").classList.add("hidden");
   $("zonaResultado").classList.remove("hidden");
   const grid = $("ganGrid"); grid.innerHTML = "";
